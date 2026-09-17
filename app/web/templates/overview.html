@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智话通 - 管理中屏</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有样式 */
+.main{max-width:none}
+.topo-svg{width:100%;min-width:800px;display:block;margin-bottom:28px}
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.config-item{display:flex;flex-direction:column;gap:2px}
+.config-item:hover{border-color:#334155}
+.config-key{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
+.config-val{font-size:15px;color:#e2e8f0;word-break:break-all;margin-top:2px}
+.config-val .badge{display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px;background:rgba(56,189,248,0.12);color:#38bdf8;margin-left:6px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">系统拓扑<button class="btn btn-secondary" onclick="loadTopo()" style="margin-left:auto">刷新</button></div>
+
+    <svg viewBox="0 0 900 160" xmlns="http://www.w3.org/2000/svg" class="topo-svg">
+        <defs>
+          <marker id="ar-orange" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#D97706"/>
+          </marker>
+          <marker id="ar-purple" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#7C3AED"/>
+          </marker>
+          <marker id="ar-green" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon points="0 0, 9 3.5, 0 7" fill="#059669"/>
+          </marker>
+        </defs>
+
+        <!-- 连线 -->
+        <line x1="210" y1="80" x2="248" y2="80" stroke="#059669" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ar-green)"/>
+        <text x="214" y="72" fill="#059669" font-size="9" font-family="Microsoft YaHei">配置下发</text>
+
+        <line x1="430" y1="80" x2="468" y2="80" stroke="#D97706" stroke-width="2" marker-end="url(#ar-orange)"/>
+        <text x="438" y="72" fill="#D97706" font-size="9" font-family="Microsoft YaHei">SIP</text>
+
+        <path d="M 650 74 L 688 74" fill="none" stroke="#7C3AED" stroke-width="2" marker-end="url(#ar-purple)"/>
+        <path d="M 688 86 L 650 86" fill="none" stroke="#7C3AED" stroke-width="2" marker-end="url(#ar-purple)"/>
+        <text x="658" y="66" fill="#7C3AED" font-size="9" font-family="Microsoft YaHei">音频流</text>
+        <text x="658" y="100" fill="#7C3AED" font-size="8" font-family="Microsoft YaHei">双向</text>
+
+        <!-- TFTP -->
+        <g id="node-tftp">
+          <rect x="30" y="28" width="180" height="104" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+          <circle id="dot-tftp" cx="48" cy="50" r="5" fill="#34d399"/>
+          <text id="status-tftp" x="60" y="54" fill="#34d399" font-size="11" font-weight="600" font-family="Microsoft YaHei">在线</text>
+          <text x="48" y="72" fill="#f1f5f9" font-size="14" font-weight="700" font-family="Microsoft YaHei">TFTP Server</text>
+          <text id="sub-tftp" x="48" y="89" fill="#64748b" font-size="10" font-family="Microsoft YaHei">ATA 配置下发</text>
+          <text id="ip-tftp" x="48" y="106" fill="#94a3b8" font-size="10" font-family="Microsoft YaHei">10.168.2.94</text>
+          <text id="ports-tftp" x="48" y="120" fill="#94a3b8" font-size="9" font-family="Microsoft YaHei">UDP 69</text>
+        </g>
+
+        <!-- 座机 -->
+        <g id="node-ata">
+          <rect x="250" y="28" width="180" height="104" rx="10" fill="#1e293b" stroke="#D97706" stroke-width="1.5"/>
+          <circle id="dot-ata" cx="268" cy="50" r="5" fill="#64748b"/>
+          <text id="status-ata" x="280" y="54" fill="#64748b" font-size="11" font-weight="600" font-family="Microsoft YaHei">离线</text>
+          <text x="268" y="72" fill="#f1f5f9" font-size="14" font-weight="700" font-family="Microsoft YaHei">ATA190 座机</text>
+          <text id="sub-ata" x="268" y="89" fill="#64748b" font-size="10" font-family="Microsoft YaHei">注册到 FreePBX</text>
+          <text id="ip-ata" x="268" y="106" fill="#94a3b8" font-size="10" font-family="Microsoft YaHei">10.168.2.135</text>
+          <text id="ports-ata" x="268" y="120" fill="#94a3b8" font-size="9" font-family="Microsoft YaHei">SIP 5060</text>
+        </g>
+
+        <!-- FreePBX -->
+        <g id="node-freepbx">
+          <rect x="470" y="28" width="180" height="104" rx="10" fill="#1e293b" stroke="#38BDF8" stroke-width="1.5"/>
+          <circle id="dot-freepbx" cx="488" cy="50" r="5" fill="#64748b"/>
+          <text id="status-freepbx" x="500" y="54" fill="#64748b" font-size="11" font-weight="600" font-family="Microsoft YaHei">离线</text>
+          <text x="488" y="72" fill="#f1f5f9" font-size="14" font-weight="700" font-family="Microsoft YaHei">FreePBX (Asterisk)</text>
+          <text id="sub-freepbx" x="488" y="89" fill="#64748b" font-size="10" font-family="Microsoft YaHei">IP-PBX 核心</text>
+          <text id="ip-freepbx" x="488" y="106" fill="#94a3b8" font-size="10" font-family="Microsoft YaHei">10.168.2.94</text>
+          <text id="ports-freepbx" x="488" y="120" fill="#94a3b8" font-size="9" font-family="Microsoft YaHei">SIP 5060 · AMI 5038</text>
+        </g>
+
+        <!-- AI 后端 -->
+        <g id="node-ai">
+          <rect x="690" y="28" width="180" height="104" rx="10" fill="#1e293b" stroke="#7C3AED" stroke-width="1.5"/>
+          <circle id="dot-ai" cx="708" cy="50" r="5" fill="#34d399"/>
+          <text id="status-ai" x="720" y="54" fill="#34d399" font-size="11" font-weight="600" font-family="Microsoft YaHei">在线</text>
+          <text x="708" y="72" fill="#f1f5f9" font-size="14" font-weight="700" font-family="Microsoft YaHei">AI 后端 (Python)</text>
+          <text id="sub-ai" x="708" y="89" fill="#64748b" font-size="10" font-family="Microsoft YaHei">推理 + 中屏</text>
+          <text id="ip-ai" x="708" y="106" fill="#94a3b8" font-size="10" font-family="Microsoft YaHei">10.168.2.94</text>
+          <text id="ports-ai" x="708" y="120" fill="#94a3b8" font-size="9" font-family="Microsoft YaHei">AS 9090 · Web 8080</text>
+        </g>
+    </svg>
+
+  <div class="section-title">配置摘要</div>
+  <div class="config-grid">
+    <div class="config-item card">
+      <span class="config-key">ASR 引擎</span>
+      <span class="config-val" id="cfg-asr">SenseVoiceSmall-GGUF</span>
+    </div>
+    <div class="config-item card">
+      <span class="config-key">VAD 引擎</span>
+      <span class="config-val" id="cfg-vad">--</span>
+    </div>
+    <div class="config-item card">
+      <span class="config-key">LLM 接口</span>
+      <span class="config-val" id="cfg-llm-base">--</span>
+    </div>
+    <div class="config-item card">
+      <span class="config-key">LLM 模型</span>
+      <span class="config-val" id="cfg-llm-model">--</span>
+    </div>
+    <div class="config-item card">
+      <span class="config-key">TTS 引擎</span>
+      <span class="config-val" id="cfg-tts">--</span>
+    </div>
+    <div class="config-item card">
+      <span class="config-key">搜索引擎</span>
+      <span class="config-val" id="cfg-search">AnySearch</span>
+    </div>
+  </div>
+
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+function loadStatus(){
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    document.getElementById('cfg-asr').textContent=d.asr_provider;
+    document.getElementById('cfg-vad').textContent=d.vad_provider||'tenvad';
+    document.getElementById('cfg-llm-base').textContent=d.llm_api_base;
+    document.getElementById('cfg-llm-model').textContent=d.llm_model;
+    document.getElementById('cfg-tts').textContent=d.tts_provider;
+    var se=document.getElementById('cfg-search');
+    if(se)se.textContent=d.search_provider||'AnySearch';
+  }).catch(function(){});
+}
+function loadTopo(){
+  fetch('/api/topology').then(r=>r.json()).then(d=>{
+    (d.nodes||[]).forEach(function(n){
+      var dot=document.getElementById('dot-'+n.id);
+      var st=document.getElementById('status-'+n.id);
+      var sub=document.getElementById('sub-'+n.id);
+      var ip=document.getElementById('ip-'+n.id);
+      var ports=document.getElementById('ports-'+n.id);
+      var color=n.ok?'#34d399':'#f87171';
+      if(dot)dot.setAttribute('fill',color);
+      if(st){st.setAttribute('fill',color);st.textContent=n.status;}
+      if(sub)sub.textContent=n.sub||'';
+      if(ip)ip.textContent=n.ip||'';
+      if(ports)ports.textContent=(n.ports||[]).join(' · ');
+    });
+  }).catch(function(){});
+}
+loadStatus();
+loadTopo();
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

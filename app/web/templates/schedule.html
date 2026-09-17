@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定时任务 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有 */
+.main{max-width:none}
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.toolbar .hint{font-size:12px;color:#64748b}
+.table-wrap{background:#1e293b;border:1px solid #1e293b;border-radius:12px;overflow:hidden}
+table{font-size:13px}
+th{padding:12px 14px;border-bottom:1px solid #334155;background:#1e293b;white-space:nowrap}
+td{padding:12px 14px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1a2438}
+td .content{display:block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cbd5e1}
+.empty{padding:40px;text-align:center;color:#64748b;font-size:13px}
+.btn-sm{margin-right:6px}
+.checkbox-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.checkbox-row label{display:flex;align-items:center;gap:4px;font-size:13px;color:#cbd5e1;font-weight:normal;cursor:pointer}
+.checkbox-row input{accent-color:#2563eb}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.active{display:flex}
+.modal{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;width:500px;max-width:92vw;max-height:92vh;overflow-y:auto}
+.modal h2{font-size:16px;color:#f1f5f9;margin-bottom:18px}
+.modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:20px}
+.run-tag{display:inline-block;padding:1px 8px;border-radius:4px;font-size:11px}
+.run-tag.success{background:rgba(52,211,153,0.12);color:#34d399}
+.run-tag.failed{background:rgba(248,113,113,0.12);color:#f87171}
+.run-tag.executing{background:rgba(251,191,36,0.12);color:#fbbf24}
+.run-tag.manual{background:rgba(56,189,248,0.12);color:#38bdf8}
+.run-tag.auto{background:rgba(168,85,247,0.12);color:#a855f7}
+/* 详情弹窗 */
+.detail-modal{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:0;width:660px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.dm-head{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid #334155}
+.dm-head h3{font-size:15px;color:#f1f5f9;margin:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dm-close{width:28px;height:28px;border:none;background:transparent;color:#94a3b8;font-size:20px;cursor:pointer;border-radius:6px;line-height:1}
+.dm-close:hover{background:#334155;color:#e2e8f0}
+.dm-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;padding:12px 20px;border-bottom:1px solid #334155}
+.dm-meta .mi{font-size:12px;color:#94a3b8}.dm-meta .mi b{color:#e2e8f0;font-weight:600;margin-left:4px}
+.dm-transcript{flex:1;overflow-y:auto;padding:12px 20px;min-height:60px;max-height:300px}
+.dm-transcript .dm-user{color:#38bdf8;padding:4px 0;white-space:pre-wrap;word-break:break-all;font-size:13px;line-height:1.6}
+.dm-transcript .dm-user::before{content:'👤 ';opacity:.7}
+.dm-transcript .dm-ai{color:#34d399;padding:4px 0 8px;white-space:pre-wrap;word-break:break-all;font-size:13px;line-height:1.6}
+.dm-transcript .dm-ai::before{content:'🤖 ';opacity:.7}
+.dm-transcript .dm-empty{text-align:center;color:#64748b;padding:20px;font-size:13px}
+.ops{white-space:nowrap}.ops .btn-sm{margin-right:6px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">定时任务</div>
+
+  <div class="toolbar">
+    <span class="hint">到点自动 LLM 生成回复 → TTS → 外呼座机，接通后可追问</span>
+    <button class="btn" onclick="openModal()">+ 新增任务</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>任务名称</th>
+          <th>频次</th>
+          <th>时间</th>
+          <th>内容</th>
+          <th>被叫号码</th>
+          <th>状态</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="job-tbody">
+        <tr><td colspan="7" class="empty">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-title" style="margin-top:24px">近期任务</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>时间</th><th>主叫</th><th>被叫</th><th>任务名称</th><th>触发方式</th><th>执行情况</th><th style="width:60px">操作</th>
+      </tr></thead>
+      <tbody id="run-tbody">
+        <tr><td colspan="7" class="empty">暂无任务执行记录</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+
+<!-- 通话详情弹窗 -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="detail-modal">
+    <div class="dm-head">
+      <h3 id="detail-title">通话详情</h3>
+      <button type="button" class="dm-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="dm-meta" id="detail-meta"></div>
+    <div class="dm-transcript" id="detail-transcript"></div>
+  </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">新增任务</h2>
+    <div class="form-group">
+      <label>任务名称</label>
+      <input type="text" id="f-name" placeholder="如：每日天气播报">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>频次</label>
+        <select id="f-freq">
+          <option value="daily">每天</option>
+          <option value="weekly">每周</option>
+          <option value="once">一次性</option>
+          <option value="interval">间隔</option>
+        </select>
+      </div>
+      <div class="form-group" id="g-time">
+        <label>时间</label>
+        <input type="time" id="f-time" value="08:00">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" id="g-date" style="display:none">
+        <label>日期</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="form-group" id="g-weekday" style="display:none">
+        <label>星期</label>
+        <div class="checkbox-row" id="weekday-checks">
+          <label><input type="checkbox" value="0"> 周一</label>
+          <label><input type="checkbox" value="1"> 周二</label>
+          <label><input type="checkbox" value="2"> 周三</label>
+          <label><input type="checkbox" value="3"> 周四</label>
+          <label><input type="checkbox" value="4"> 周五</label>
+          <label><input type="checkbox" value="5"> 周六</label>
+          <label><input type="checkbox" value="6"> 周日</label>
+        </div>
+      </div>
+      <div class="form-group" id="g-interval" style="display:none">
+        <label>间隔（分钟）</label>
+        <input type="number" id="f-interval" value="30" min="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>内容（发送给 LLM 的提示词）</label>
+      <textarea id="f-content" placeholder="到点发给 LLM 生成回复，如：早上好，播报今天扬州的天气"></textarea>
+      <div class="hint">LLM 回复文本后 TTS 合成并外呼座机</div>
+    </div>
+    <div class="form-group">
+      <label>被叫号码（拨打的分机）</label>
+      <input type="text" id="f-caller" placeholder="101">
+      <div class="hint">默认 101（ATA 座机）</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn" id="save-btn" onclick="saveJob()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="display:none"></div>
+
+<script>
+var WEEK=['周一','周二','周三','周四','周五','周六','周日'];
+var editingId=null;
+var jobs=[];
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+(t||'success');e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function getWeekdays(){
+  return Array.prototype.slice.call(document.querySelectorAll('#weekday-checks input:checked')).map(function(c){return parseInt(c.value,10)});
+}
+function setWeekdays(arr){
+  arr=arr||[];
+  document.querySelectorAll('#weekday-checks input').forEach(function(c){
+    c.checked=arr.indexOf(parseInt(c.value,10))>=0;
+  });
+}
+function weekdayText(wd){
+  // wd 是数组；周一-周五→工作日，周六-周日→周末，其他→周一、周三
+  wd=(wd||[]).slice().sort(function(a,b){return a-b});
+  if(!wd.length)return '';
+  var mon_fri=[0,1,2,3,4],sat_sun=[5,6];
+  var isMF=wd.length===5&&wd.every(function(d){return mon_fri.indexOf(d)>=0});
+  var isSS=wd.length===2&&wd.every(function(d){return sat_sun.indexOf(d)>=0});
+  if(isMF)return '工作日';
+  if(isSS)return '周末';
+  return wd.map(function(d){return WEEK[d]}).join('、');
+}
+function freqText(j){
+  if(j.freq==='daily')return '每天';
+  if(j.freq==='weekly'){var t=weekdayText(j.weekday);return '每周'+(t?' '+t:'');}
+  if(j.freq==='interval')return '每 '+(j.interval_min||30)+' 分钟';
+  return '一次性';
+}
+function timeText(j){
+  if(j.freq==='interval')return '—';
+  if(j.freq==='once')return (j.date||'')+' '+(j.time||'');
+  return j.time||'';
+}
+function loadJobs(){
+  fetch('/api/scheduler/jobs').then(r=>r.json()).then(d=>{
+    jobs=d.jobs||[];
+    var tb=document.getElementById('job-tbody');
+    if(!jobs.length){tb.innerHTML='<tr><td colspan="7" class="empty">暂无定时任务，点右上角「新增任务」创建</td></tr>';return;}
+    tb.innerHTML=jobs.map(function(j){
+      return '<tr>'+
+        '<td>'+esc(j.name||j.caller)+'</td>'+
+        '<td>'+freqText(j)+'</td>'+
+        '<td>'+esc(timeText(j))+'</td>'+
+        '<td><span class="content" title="'+esc(j.content)+'">'+esc(j.content)+'</span></td>'+
+        '<td>'+esc(j.caller)+'</td>'+
+        '<td><span class="badge '+(j.enabled===false?'off':'on')+'">'+(j.enabled===false?'停用':'启用')+'</span></td>'+
+        '<td>'+
+          '<button class="btn-sm btn-edit" onclick="editJob(\''+j.id+'\')">编辑</button>'+
+          '<button class="btn-sm btn-toggle" onclick="testJob(event,\''+j.id+'\')">测试</button>'+
+          '<button class="btn-sm '+(j.enabled===false?'btn-toggle':'btn-del')+'" onclick="toggleJob(\''+j.id+'\')">'+(j.enabled===false?'启用':'禁用')+'</button>'+
+          '<button class="btn-sm btn-del" onclick="delJob(\''+j.id+'\')">删除</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+  }).catch(function(){document.getElementById('job-tbody').innerHTML='<tr><td colspan="7" class="empty">加载失败</td></tr>'});
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function updateFreqFields(){
+  var f=document.getElementById('f-freq').value;
+  document.getElementById('g-time').style.display=(f==='interval')?'none':'';
+  document.getElementById('g-date').style.display=(f==='once')?'':'none';
+  document.getElementById('g-weekday').style.display=(f==='weekly')?'':'none';
+  document.getElementById('g-interval').style.display=(f==='interval')?'':'none';
+}
+function openModal(){
+  editingId=null;
+  document.getElementById('modal-title').textContent='新增任务';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-freq').value='daily';
+  document.getElementById('f-time').value='08:00';
+  document.getElementById('f-date').value='';
+  setWeekdays([0]);
+  document.getElementById('f-interval').value='30';
+  document.getElementById('f-content').value='';
+  document.getElementById('f-caller').value='101';
+  updateFreqFields();
+  document.getElementById('modal').style.display='flex';
+}
+function editJob(id){
+  var j=jobs.find(function(x){return x.id===id});if(!j)return;
+  editingId=id;
+  document.getElementById('modal-title').textContent='编辑任务';
+  document.getElementById('f-name').value=j.name||'';
+  document.getElementById('f-freq').value=j.freq||'daily';
+  document.getElementById('f-time').value=j.time||'08:00';
+  document.getElementById('f-date').value=j.date||'';
+  setWeekdays(j.weekday);
+  document.getElementById('f-interval').value=j.interval_min||30;
+  document.getElementById('f-content').value=j.content||'';
+  document.getElementById('f-caller').value=j.caller||'101';
+  updateFreqFields();
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(){document.getElementById('modal').style.display='none'}
+function saveJob(){
+  var b=document.getElementById('save-btn');b.disabled=true;b.textContent='保存中...';
+  var body={
+    name:document.getElementById('f-name').value,
+    freq:document.getElementById('f-freq').value,
+    time:document.getElementById('f-time').value,
+    date:document.getElementById('f-date').value,
+    weekday:getWeekdays(),
+    interval_min:parseInt(document.getElementById('f-interval').value||'30',10),
+    content:document.getElementById('f-content').value,
+    caller:document.getElementById('f-caller').value
+  };
+  var url='/api/scheduler/jobs',method='POST';
+  if(editingId){url+='/'+editingId;method='PUT'}
+  fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(r=>r.json()).then(d=>{
+    b.disabled=false;b.textContent='保存';
+    if(d.error){toast(d.error,'error');return;}
+    toast('已保存','success');closeModal();loadJobs();
+  }).catch(function(){b.disabled=false;b.textContent='保存';toast('保存失败','error')});
+}
+function delJob(id){
+  if(!confirm('确认删除该定时任务？'))return;
+  fetch('/api/scheduler/jobs/'+id,{method:'DELETE'}).then(r=>r.json()).then(d=>{
+    if(d.error){toast(d.error,'error');return;}
+    toast('已删除','success');loadJobs();
+  }).catch(function(){toast('删除失败','error')});
+}
+function testJob(ev,id){
+  var btn=ev.target;btn.disabled=true;btn.textContent='执行中...';
+  fetch('/api/scheduler/jobs/'+id+'/run',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.error){toast(d.error,'error')}else{toast(d.message,'success')}
+    btn.disabled=false;btn.textContent='测试';loadJobs();
+  }).catch(function(){toast('执行失败','error');btn.disabled=false;btn.textContent='测试'});
+}
+function toggleJob(id){
+  fetch('/api/scheduler/jobs/'+id+'/toggle',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.error){toast(d.error,'error')}else{toast(d.message,'success');loadJobs()}
+  }).catch(function(){toast('操作失败','error')});
+}
+/* ── 近期任务 ── */
+function escRun(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+var RUN_STATUS={'success':'成功','failed':'失败','executing':'执行中'};
+function loadRuns(){
+  fetch('/api/scheduler/runs').then(r=>r.json()).then(d=>{
+    var runs=d.runs||[];
+    var tb=document.getElementById('run-tbody');
+    if(runs.length===0){
+      tb.innerHTML='<tr><td colspan="7" class="empty">暂无任务执行记录</td></tr>';
+      return;
+    }
+    var html='';
+    runs.forEach(function(x){
+      var st=x.status||'executing';
+      var stLabel=RUN_STATUS[st]||st;
+      var stCls=st==='success'?'success':(st==='failed'?'failed':'executing');
+      var trigCls=x.trigger_type==='manual'?'manual':'auto';
+      var viewBtn=x.call_id
+        ?'<button type="button" class="btn-sm btn-edit" onclick="viewCall(\''+escRun(x.call_id)+'\')">查看</button>'
+          +'<button type="button" class="btn-sm btn-toggle" onclick="exportCall(\''+escRun(x.call_id)+'\')">导出</button>'
+        :'<span style="color:#475569;font-size:11px">—</span>';
+      html+='<tr>'
+        +'<td>'+escRun(x.run_time||'')+'</td>'
+        +'<td>'+escRun(x.caller||'')+'</td>'
+        +'<td>'+escRun(x.callee||'')+'</td>'
+        +'<td><span class="content" title="'+escRun(x.job_name||'')+'">'+escRun(x.job_name||'')+'</span></td>'
+        +'<td><span class="run-tag '+trigCls+'">'+escRun(x.trigger_label||'')+'</span></td>'
+        +'<td><span class="run-tag '+stCls+'">'+escRun(stLabel)+'</span></td>'
+        +'<td class="ops">'+viewBtn+'</td>'
+        +'</tr>';
+    });
+    tb.innerHTML=html;
+  }).catch(function(){document.getElementById('run-tbody').innerHTML='<tr><td colspan="7" class="empty">加载失败</td></tr>';});
+}
+/* ── 通话详情弹窗（复用通话历史逻辑）── */
+function viewCall(callId){
+  fetch('/api/calls/'+callId).then(r=>r.json()).then(d=>{
+    if(d.error){alert(d.error);return;}
+    var dur=(d.duration_s||0)+' 秒';
+    var type=d.is_callback?'系统回拨':'正常拨入';
+    document.getElementById('detail-title').textContent='通话详情 UUID：'+callId;
+    document.getElementById('detail-meta').innerHTML=
+      '<div class="mi">主叫号码<b>'+escRun(d.caller||'—')+'</b></div>'
+      +'<div class="mi">被叫号码<b>'+escRun(d.callee||'—')+'</b></div>'
+      +'<div class="mi">通话开始<b>'+escRun(d.start_time||'—')+'</b></div>'
+      +'<div class="mi">通话结束<b>'+escRun(d.end_time||'—')+'</b></div>'
+      +'<div class="mi">通话时长<b>'+escRun(dur)+'</b></div>'
+      +'<div class="mi">通话类型<b>'+escRun(type)+'</b></div>';
+    var trans=document.getElementById('detail-transcript');
+    var turns=d.turns||[];
+    if(turns.length===0){
+      trans.innerHTML='<div class="dm-empty">该通话无对话内容</div>';
+    }else{
+      var html='';
+      turns.forEach(function(t){
+        if(t.user_text)html+='<div class="dm-user">'+escRun(t.user_text)+'</div>';
+        if(t.ai_text)html+='<div class="dm-ai">'+escRun(t.ai_text)+'</div>';
+      });
+      trans.innerHTML=html;
+    }
+    document.getElementById('detail-modal').classList.add('active');
+  });
+}
+function closeDetail(){document.getElementById('detail-modal').classList.remove('active');}
+function exportCall(callId){window.open('/api/calls/'+callId+'/export','_blank');}
+document.getElementById('f-freq').addEventListener('change',updateFreqFields);
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal()});
+document.getElementById('detail-modal').addEventListener('click',function(e){if(e.target===this)closeDetail()});
+loadJobs();
+loadRuns();
+setInterval(loadRuns,5000);
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

@@ -1,0 +1,12 @@
+[submodule "refs/audiosocket_server"]
+	path = refs/audiosocket_server
+	url = https://github.com/silentindark/audiosocket_server.git
+[submodule "refs/Cisco-7900-and-8800-series-freepbx-setup"]
+	path = refs/Cisco-7900-and-8800-series-freepbx-setup
+	url = https://github.com/buba0/Cisco-7900-and-8800-series-freepbx-setup.git
+[submodule "refs/AVA-AI-Voice-Agent-for-Asterisk"]
+	path = refs/AVA-AI-Voice-Agent-for-Asterisk
+	url = https://github.com/hkjarral/AVA-AI-Voice-Agent-for-Asterisk.git
+[submodule "refs/jetson-tts"]
+	path = refs/jetson-tts
+	url = https://github.com/vieenrose/jetson-tts.git

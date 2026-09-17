@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模型配置 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有：标签页 */
+.main{max-width:none}
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #334155}
+.tab{padding:10px 20px;cursor:pointer;color:#94a3b8;font-size:14px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.tab:hover{color:#e2e8f0}
+.tab.active{color:#0ea5e9;border-bottom-color:#0ea5e9}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+/* SEARCH 二级标签页 */
+.sub-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border-line)}
+.sub-tab{padding:8px 16px;cursor:pointer;color:var(--text-muted);font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.sub-tab:hover{color:var(--text-primary)}
+.sub-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sub-tab-content{display:none}
+.sub-tab-content.active{display:block}
+.sub-tab-content textarea{min-height:60px}
+/* map 弹窗样式 */
+#map-modal .modal-box{width:660px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:14px;border:1px solid #334155;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.modal-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--border-line);background:linear-gradient(135deg,rgba(14,165,233,.14),rgba(14,165,233,0) 60%)}
+.modal-head .micon{width:36px;height:36px;border-radius:10px;background:rgba(14,165,233,.16);display:flex;align-items:center;justify-content:center;color:#38bdf8;flex-shrink:0}
+.modal-head h3{font-size:16px;font-weight:700;color:var(--text-heading);margin:0;flex:1}
+.modal-head .mcount{font-size:12px;color:#7dd3fc;background:rgba(14,165,233,.14);padding:3px 12px;border-radius:20px;font-weight:600}
+.modal-close{width:30px;height:30px;border:none;background:transparent;color:#94a3b8;font-size:22px;cursor:pointer;border-radius:8px;line-height:1;transition:all .15s}
+.modal-close:hover{background:var(--bg-hover);color:#e2e8f0}
+.modal-body{padding:14px 22px 4px;flex:1;overflow-y:auto;min-height:0}
+.map-table{width:100%;border-collapse:collapse}
+.map-table thead th{position:sticky;top:0;background:var(--bg-card);padding:9px 12px;font-size:12px;color:#64748b;border-bottom:1px solid var(--border-line);text-align:left;font-weight:600;letter-spacing:.3px;z-index:1}
+.map-table tbody tr{border-bottom:1px solid rgba(51,65,85,.4)}
+.map-table tbody tr:nth-child(odd){background:rgba(51,65,85,.14)}
+.map-table tbody tr:hover{background:rgba(14,165,233,.08)}
+.map-table td{padding:10px 12px;font-size:13px;color:var(--text-primary)}
+.map-table .code-cell{font-family:'SF Mono',ui-monospace,'JetBrains Mono',Consolas,monospace;font-size:12px;color:#7dd3fc;letter-spacing:.3px}
+.map-table td:last-child{text-align:right;width:56px}
+.map-del{background:transparent;border:1px solid transparent;color:#64748b;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;transition:all .15s}
+.map-del:hover{color:#f87171;background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.25)}
+.pagination{display:flex;align-items:center;gap:6px;padding:12px 0 14px;border-top:1px solid rgba(51,65,85,.4);margin-top:8px}
+.pg-btn{min-width:32px;height:32px;padding:0 10px;background:transparent;border:1px solid var(--border-line);color:var(--text-muted);border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s}
+.pg-btn:hover:not(:disabled){border-color:var(--accent);color:#7dd3fc}
+.pg-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.pg-btn:disabled{opacity:.35;cursor:not-allowed}
+.pg-info{margin-left:auto;font-size:12px;color:var(--text-dim)}
+.map-add{display:flex;gap:10px;padding:14px 0;border-top:1px solid rgba(51,65,85,.4);align-items:center}
+.map-add input{flex:1;margin:0;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border-line);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;font-family:inherit}
+.map-add input:focus{border-color:var(--accent)}
+.map-add .btn{flex-shrink:0;padding:8px 16px;font-size:13px;box-sizing:border-box;font-family:inherit;border:1px solid transparent;background:var(--accent);color:#fff;font-weight:600;border-radius:8px;cursor:pointer;transition:background .2s}
+.map-add .btn:hover{background:#0284c7}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;border-top:1px solid var(--border-line)}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">模型配置</div>
+
+  <!-- 标签页导航 -->
+  <div class="tabs">
+    <div class="tab active" data-tab="asr">ASR · 语音转文字</div>
+    <div class="tab" data-tab="llm">LLM · 大语言模型</div>
+    <div class="tab" data-tab="tts">TTS · 文字转语音</div>
+    <div class="tab" data-tab="search">SEARCH · 搜索</div>
+  </div>
+
+  <form id="form">
+    <!-- ASR 标签页 -->
+    <div class="tab-content active" id="tab-asr">
+      <div class="form-group"><label>识别引擎</label>
+        <select id="asr_provider">
+          <option value="zipformer">官方 zipformer（流式，推荐）</option>
+        </select>
+        <div class="hint">切换引擎后保存生效（下次通话加载新引擎）</div>
+      </div>
+      <div id="asr-zipformer" style="display:none">
+        <div class="form-row-3">
+          <div class="form-group"><label>尾静音阈值1 rule1（秒）</label><input type="number" step="0.1" data-key="rule1_min_trailing_silence" placeholder="1.8"><div class="hint">静音持续≥此值断句</div></div>
+          <div class="form-group"><label>尾静音阈值2 rule2（秒）</label><input type="number" step="0.1" data-key="rule2_min_trailing_silence" placeholder="2.0"><div class="hint">更严格的断句阈值</div></div>
+          <div class="form-group"><label>最长句长 rule3（秒）</label><input type="number" step="0.5" data-key="rule3_min_utterance_length" placeholder="30.0"><div class="hint">超过此时长强制断句</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LLM 标签页 -->
+    <div class="tab-content" id="tab-llm">
+      <div class="form-group"><label>推理引擎</label>
+        <select id="llm_provider">
+          <option value="openai_compat">OpenAI兼容（外部API）</option>
+          <option value="local_llama">本地llama.cpp（离线）</option>
+        </select>
+        <div class="hint">切换引擎后保存生效（下次通话加载新引擎）</div>
+      </div>
+      <!-- 外部 API 子面板（默认） -->
+      <div id="llm-openai_compat" style="display:none">
+        <div class="form-row-3">
+          <div class="form-group"><label>API 地址</label><input type="text" id="llm_api_base" placeholder="https://api.deepseek.com/v1"></div>
+          <div class="form-group"><label>API Key</label><input type="password" id="llm_api_key"></div>
+          <div class="form-group"><label>模型名称</label><input type="text" id="llm_model" placeholder="deepseek-v4-flash"></div>
+        </div>
+        <div class="form-group"><label>System Prompt</label><textarea id="llm_system_prompt"></textarea></div>
+      </div>
+      <!-- 本地 llama.cpp 子面板 -->
+      <div id="llm-local_llama" style="display:none">
+        <div class="form-row-3">
+          <div class="form-group"><label>API 地址</label><input type="text" data-key="api_base" readonly value="http://host.docker.internal:8081/v1"><div class="hint">固定为本地 llama-server 地址</div></div>
+          <div class="form-group"><label>模型名称</label><input type="text" data-key="model" readonly value="unsloth/Qwen3.5-4B-MTP-GGUF"></div>
+          <div class="form-group"><label>状态</label><span id="llm_local_status" style="align-self:center">未检测</span></div>
+        </div>
+        <div class="form-group"><label>System Prompt（精简版）</label><textarea data-key="system_prompt">简洁中文口语回答，1-2句话。直接给结论，不要复述问题，不要口头禅。不用表情符号和markdown。</textarea></div>
+      </div>
+    </div>
+
+    <!-- TTS 标签页 -->
+    <div class="tab-content" id="tab-tts">
+      <div class="form-group"><label>合成引擎</label>
+        <select id="tts_provider">
+          <option value="matcha-zh-en-8k">Matcha-TTS 8kHz（离线，中英混读，推荐）</option>
+          <option value="edge">EdgeTTS（微软在线，多音色）</option>
+        </select>
+        <div class="hint">切换引擎后保存生效（下次通话加载新引擎）</div>
+      </div>
+      <div id="tts-matcha-zh-en-8k" style="display:none">
+        <div class="form-row-3">
+          <div class="form-group"><label>语速 speed</label><input type="number" step="0.1" data-key="speed" placeholder="1.0"><div class="hint">1.0 正常，越大越快</div></div>
+          <div class="form-group"><label>温度 noise_scale</label><input type="number" step="0.1" data-key="noise_scale" placeholder="1.0"><div class="hint">采样温度，默认 1.0</div></div>
+          <div class="form-group"><label>语长 length_scale</label><input type="number" step="0.1" data-key="length_scale" placeholder="1.0"><div class="hint">发音时长缩放，1.0 正常</div></div>
+        </div>
+      </div>
+      <div id="tts-edge" style="display:none">
+        <div class="form-row-3">
+          <div class="form-group"><label>音色 voice</label>
+            <select data-key="voice">
+              <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao（女声，默认）</option>
+              <option value="zh-CN-XiaoyiNeural">Xiaoyi（女声，自然）</option>
+              <option value="zh-CN-YunxiNeural">Yunxi（男声）</option>
+              <option value="zh-CN-YunjianNeural">Yunjian（男声）</option>
+              <option value="zh-CN-YunyangNeural">Yunyang（男声，新闻）</option>
+              <option value="zh-CN-liaoning-XiaobeiNeural">Xiaobei（东北话）</option>
+            </select>
+            <div class="hint">微软在线音色</div>
+          </div>
+          <div class="form-group"><label>语速 rate</label>
+            <select data-key="rate">
+              <option value="-50%">-50%（超慢）</option><option value="-25%">-25%（偏慢）</option>
+              <option value="+0%">+0%（正常，默认）</option><option value="+25%">+25%（偏快）</option>
+              <option value="+50%">+50%（超快）</option>
+            </select>
+          </div>
+          <div class="form-group"><label>音量 volume</label>
+            <select data-key="volume">
+              <option value="-50%">-50%</option><option value="-25%">-25%</option>
+              <option value="+0%">+0%</option><option value="+25%">+25%</option>
+              <option value="+50%">+50%</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-group"><label>连接超时 connect_timeout（秒）</label><input type="number" step="1" data-key="connect_timeout" placeholder="10"></div>
+          <div class="form-group"><label>接收超时 receive_timeout（秒）</label><input type="number" step="1" data-key="receive_timeout" placeholder="60"></div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEARCH 标签页 -->
+    <div class="tab-content" id="tab-search">
+      <div class="form-group">
+        <label>联网搜索</label>
+        <select id="search_enabled">
+          <option value="">关闭</option>
+          <option value="anysearch" selected>AnySearch（推荐）</option>
+        </select>
+        <div class="hint">关闭后通话永不触发搜索（关键词正则不生效）</div>
+      </div>
+      <div class="form-group"><label>关键词</label>
+        <div class="sub-tabs">
+          <div class="sub-tab active" data-subtab="finance">财经 finance</div>
+          <div class="sub-tab" data-subtab="weather">天气 weather</div>
+          <div class="sub-tab" data-subtab="general">通用 general</div>
+          <div class="sub-tab" data-subtab="filters">过滤词</div>
+        </div>
+        <div class="sub-tab-content active" id="subtab-finance">
+          <textarea id="search_routes_finance" placeholder="股价|涨跌|股票|..."></textarea>
+        </div>
+        <div class="sub-tab-content" id="subtab-weather">
+          <textarea id="search_routes_weather" placeholder="天气|气温|下雨|..."></textarea>
+        </div>
+        <div class="sub-tab-content" id="subtab-general">
+          <textarea id="search_routes_general" placeholder="最新|新闻|刚刚|..."></textarea>
+          <div class="hint">多个关键词用 | 分隔；匹配优先级 finance &gt; weather &gt; general</div>
+        </div>
+        <div class="sub-tab-content" id="subtab-filters">
+          <textarea id="search_filters" placeholder="好的|嗯|哦|帮我查一下|..."></textarea>
+          <div class="hint">搜索词清理白名单：发往搜索引擎前自动过滤这些口语词；多个用 | 分隔，留空用默认</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap">
+      <button type="submit" class="btn" id="saveBtn">保存</button>
+      <button type="button" class="btn btn-secondary" onclick="load()">重新加载</button>
+      <button type="button" class="btn" style="background:#7c3aed" onclick="testLLM()">测试 LLM</button>
+      <button type="button" class="btn" onclick="testTTS()">测试 TTS</button>
+      <button type="button" class="btn btn-secondary" onclick="openMapModal('stock')">股票代码表</button>
+      <button type="button" class="btn btn-secondary" onclick="openMapModal('city')">城市代码表</button>
+    </div>
+  </form>
+
+  <!-- Map 二级弹窗 -->
+  <div class="modal-overlay" id="map-modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="micon" id="map-modal-icon"></div>
+        <h3 id="map-modal-title">股票代码表</h3>
+        <span class="mcount" id="map-modal-count">0 项</span>
+        <button type="button" class="modal-close" onclick="closeMapModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <table class="map-table">
+          <thead><tr><th>名称</th><th>代码</th><th style="width:56px">操作</th></tr></thead>
+          <tbody id="map-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="map-pagination"></div>
+      <div class="map-add">
+        <input id="map-add-name" placeholder="名称（如 贵州茅台 / 扬州）">
+        <input id="map-add-code" placeholder="代码（如 600519.SH / 101190601）">
+        <button type="button" class="btn" onclick="mapAdd()">＋ 新增</button>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" onclick="saveMap()">保存</button>
+        <button type="button" class="btn btn-secondary" onclick="closeMapModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" style="display:none"></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+var ASR_PROVIDERS=['zipformer'];
+var TTS_PROVIDERS=['matcha-zh-en-8k','edge'];
+var LLM_PROVIDERS=['openai_compat','local_llama'];
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t;e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function showAsrGroup(p){ASR_PROVIDERS.forEach(function(x){var el=document.getElementById('asr-'+x);if(el)el.style.display=(x===p)?'block':'none'})}
+function showTtsGroup(p){TTS_PROVIDERS.forEach(function(x){var el=document.getElementById('tts-'+x);if(el)el.style.display=(x===p)?'block':'none'})}
+function showLlmGroup(p){LLM_PROVIDERS.forEach(function(x){var el=document.getElementById('llm-'+x);if(el)el.style.display=(x===p)?'block':'none'});checkLocalStatus();}
+function collectGroup(groupId){var o={};document.querySelectorAll('#'+groupId+' [data-key]').forEach(function(el){o[el.dataset.key]=el.value;});return o}
+function fillGroup(groupId,sub){document.querySelectorAll('#'+groupId+' [data-key]').forEach(function(el){var v=sub?sub[el.dataset.key]:'';el.value=(v===undefined||v===null)?'':v;});}
+// 标签页切换
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    var tab=this.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+    document.querySelectorAll('.tab-content').forEach(function(x){x.classList.remove('active')});
+    this.classList.add('active');
+    document.getElementById('tab-'+tab).classList.add('active');
+  });
+});
+// SEARCH 二级标签页切换
+document.querySelectorAll('.sub-tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    var st=this.dataset.subtab;
+    document.querySelectorAll('.sub-tab').forEach(function(x){x.classList.remove('active')});
+    document.querySelectorAll('.sub-tab-content').forEach(function(x){x.classList.remove('active')});
+    this.classList.add('active');
+    document.getElementById('subtab-'+st).classList.add('active');
+  });
+});
+function load(){
+  fetch('/api/config/ai').then(r=>r.json()).then(d=>{
+    var ap=(d.asr&&d.asr.provider)||'zipformer', tp=(d.tts&&d.tts.provider)||'matcha-zh-en-8k';
+    document.getElementById('asr_provider').value=ap;showAsrGroup(ap);
+    ASR_PROVIDERS.forEach(function(p){fillGroup('asr-'+p,d.asr&&d.asr[p]);});
+    var lp=(d.llm&&d.llm.provider)||'openai_compat';
+    document.getElementById('llm_provider').value=lp;showLlmGroup(lp);
+    document.getElementById('llm_api_base').value=(d.llm&&d.llm.api_base)||'';
+    document.getElementById('llm_api_key').value=(d.llm&&d.llm.api_key)||'';
+    document.getElementById('llm_model').value=(d.llm&&d.llm.model)||'';
+    document.getElementById('llm_system_prompt').value=(d.llm&&d.llm.system_prompt)||'';
+    fillGroup('llm-local_llama',d.llm&&d.llm.local_llama);
+    document.getElementById('tts_provider').value=tp;showTtsGroup(tp);
+    TTS_PROVIDERS.forEach(function(p){fillGroup('tts-'+p,d.tts&&d.tts[p]);});
+    // search
+    var sr=d.search||{};
+    var se=document.getElementById('search_enabled');
+    if(se)se.value=sr.enabled?(sr.provider||'anysearch'):'';
+    var routes=sr.routes||{};
+    document.getElementById('search_routes_finance').value=routes.finance||'';
+    document.getElementById('search_routes_weather').value=routes.weather||'';
+    document.getElementById('search_routes_general').value=routes.general||'';
+    document.getElementById('search_filters').value=sr.filters||'';
+    gCityMap=sr.city_map||{};
+    gStockMap=sr.stock_map||{};
+    toast('已加载','success');
+  }).catch(()=>toast('加载失败','error'));
+}
+function testLLM(){
+  var b=document.querySelector('button[onclick="testLLM()"]');b.disabled=true;b.textContent='测试中...';
+  var lp=document.getElementById('llm_provider').value;
+  fetch('/api/llm/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:lp,prompt:'你好，回复两个字：正常'})})
+  .then(r=>r.json()).then(d=>{if(d.status==='ok')toast('LLM('+lp+')正常: '+d.reply.slice(0,20),'success');else toast(d.message||'失败','error');b.disabled=false;b.textContent='测试 LLM'})
+  .catch(()=>{toast('测试失败','error');b.disabled=false;b.textContent='测试 LLM'});
+}
+function checkLocalStatus(){
+  var st=document.getElementById('llm_local_status');if(!st)return;
+  st.textContent='检测中...';
+  fetch('/api/llm/local/status').then(r=>r.json()).then(d=>{
+    st.textContent=d.online?'在线':'离线';
+    st.style.color=d.online?'var(--ok,#22c55e)':'var(--err,#ef4444)';
+  }).catch(()=>{st.textContent='离线';st.style.color='var(--err,#ef4444)';});
+}
+function testTTS(){
+  var b=document.querySelector('button[onclick="testTTS()"]');b.disabled=true;b.textContent='合成中...';
+  var tp=document.getElementById('tts_provider').value;
+  var params=collectGroup('tts-'+tp);
+  fetch('/api/tts/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:tp,params:params})})
+  .then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){
+      var a=new Audio('data:audio/wav;base64,'+d.audio);a.play();
+      toast('TTS('+d.provider+'): '+d.duration+'s','success');
+    }else toast('TTS: '+d.message,'error');
+    b.disabled=false;b.textContent='测试 TTS';
+  }).catch(()=>{toast('失败','error');b.disabled=false;b.textContent='测试 TTS'});
+}
+document.getElementById('asr_provider').addEventListener('change',function(){showAsrGroup(this.value)});
+document.getElementById('tts_provider').addEventListener('change',function(){showTtsGroup(this.value)});
+document.getElementById('llm_provider').addEventListener('change',function(){showLlmGroup(this.value)});
+document.getElementById('form').addEventListener('submit',function(e){
+  e.preventDefault();var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='保存中...';
+  var ap=document.getElementById('asr_provider').value;
+  var tp=document.getElementById('tts_provider').value;
+  var lp=document.getElementById('llm_provider').value;
+  var d={asr:{provider:ap},tts:{provider:tp}};
+  if(lp==='local_llama'){
+    d.llm={provider:lp,local_llama:collectGroup('llm-local_llama')};
+  }else{
+    d.llm={provider:lp,api_base:document.getElementById('llm_api_base').value,api_key:document.getElementById('llm_api_key').value,model:document.getElementById('llm_model').value,system_prompt:document.getElementById('llm_system_prompt').value};
+  }
+  d.asr[ap]=collectGroup('asr-'+ap);
+  d.tts[tp]=collectGroup('tts-'+tp);
+  d.search={enabled:document.getElementById('search_enabled').value!=='',provider:document.getElementById('search_enabled').value||'anysearch',routes:{finance:document.getElementById('search_routes_finance').value,weather:document.getElementById('search_routes_weather').value,general:document.getElementById('search_routes_general').value},filters:document.getElementById('search_filters').value,city_map:gCityMap,stock_map:gStockMap};
+  fetch('/api/config/ai',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+  .then(r=>r.json()).then(()=>{toast('已保存','success');b.disabled=false;b.textContent='保存'})
+  .catch(()=>{toast('保存失败','error');b.disabled=false;b.textContent='保存'});
+});
+// ── map 二级弹窗（city_map / stock_map）──
+var gCityMap={}, gStockMap={}, mapData={};
+var mapType='', mapPageNum=1, MAP_PAGE_SIZE=10;
+var STOCK_ICON='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
+var CITY_ICON='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="3"/></svg>';
+var DEL_ICON='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/></svg>';
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function openMapModal(type){
+  mapType=type;
+  mapData=type==='city'?gCityMap:gStockMap;
+  mapPageNum=1;
+  document.getElementById('map-modal-title').textContent=type==='city'?'城市代码表（city_map）':'股票代码表（stock_map）';
+  document.getElementById('map-modal-icon').innerHTML=type==='city'?CITY_ICON:STOCK_ICON;
+  document.getElementById('map-modal').classList.add('active');
+  renderAll();
+}
+function closeMapModal(){document.getElementById('map-modal').classList.remove('active')}
+function renderAll(){
+  var entries=Object.entries(mapData);
+  var totalPages=Math.max(1,Math.ceil(entries.length/MAP_PAGE_SIZE));
+  if(mapPageNum>totalPages)mapPageNum=totalPages;
+  if(mapPageNum<1)mapPageNum=1;
+  var start=(mapPageNum-1)*MAP_PAGE_SIZE,p=entries.slice(start,start+MAP_PAGE_SIZE);
+  // 表格
+  var t=document.getElementById('map-tbody');
+  t.innerHTML='';
+  if(p.length===0){t.innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--text-dim);padding:32px 0">暂无数据</td></tr>'}
+  p.forEach(function(e){
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(e[0])+'</td><td class="code-cell">'+esc(e[1])+'</td><td><button type="button" class="map-del" title="删除">'+DEL_ICON+'</button></td>';
+    tr.querySelector('.map-del').addEventListener('click',function(){mapRemove(e[0])});
+    t.appendChild(tr);
+  });
+  // 计数
+  document.getElementById('map-modal-count').textContent=entries.length+' 项';
+  // 分页
+  var pg=document.getElementById('map-pagination');
+  pg.innerHTML='';
+  for(var i=1;i<=totalPages;i++){
+    var b=document.createElement('button');
+    b.type='button';b.className='pg-btn'+(i===mapPageNum?' active':'');b.textContent=i;
+    (function(n){b.addEventListener('click',function(){mapPageNum=n;renderAll()})})(i);
+    pg.appendChild(b);
+  }
+  var info=document.createElement('span');
+  info.className='pg-info';info.textContent='共 '+entries.length+' 条';
+  pg.appendChild(info);
+}
+function mapAdd(){
+  var n=document.getElementById('map-add-name').value.trim();
+  var c=document.getElementById('map-add-code').value.trim();
+  if(!n||!c){toast('名称和代码都不能为空','error');return}
+  mapData[n]=c;
+  document.getElementById('map-add-name').value='';
+  document.getElementById('map-add-code').value='';
+  renderAll();
+}
+function mapRemove(name){delete mapData[name];renderAll()}
+function saveMap(){
+  var key=mapType==='city'?'city_map':'stock_map';
+  var payload={search:{}};
+  payload.search[key]=mapData;
+  fetch('/api/config/ai',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+  .then(r=>r.json()).then(function(){toast('已保存','success');closeMapModal()})
+  .catch(function(){toast('保存失败','error')});
+}
+document.getElementById('map-modal').addEventListener('click',function(e){if(e.target===this)closeMapModal()});
+window.onload=load;
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

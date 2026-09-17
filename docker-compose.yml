@@ -1,0 +1,52 @@
+name: zhihuatong
+
+services:
+  # ── FreePBX / Asterisk ──
+  freepbx:
+    image: escomputers/freepbx:17-nofail2ban
+    container_name: freepbx
+    hostname: freepbx
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"                # SIP 信令
+      - "5038:5038/tcp"                # AMI 管理接口
+      - "10020-10100:10020-10100/udp"  # RTP 媒体流（80端口，与 rtp.conf rtpend=10100 对齐）
+    volumes:
+      - ./data/asterisk2:/etc/asterisk   # Asterisk 配置（与 ai-backend 共享 data 目录）
+      - callback-audio:/var/lib/asterisk/sounds/custom
+    networks:
+      - voip-net
+    environment:
+      - TZ=Asia/Shanghai
+
+  # ── AI 后端（sherpa-onnx ASR+TTS + AudioSocket + Flask 中屏）──
+  ai-backend:
+    build: .
+    container_name: ai-backend
+    restart: unless-stopped
+    dns:
+      - 114.114.114.114
+      - 8.8.8.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 本地 llama-server 在 Windows 宿主，需显式解析（否则 host.docker.internal 无法解析）
+    ports:
+      - "8080:8080/tcp"                # 中屏管理 Web
+      - "9090:9090/tcp"                # AudioSocket 协议
+    volumes:
+      - ./config.yaml:/app/config.yaml   # 运行时配置
+      - ./data:/app/data                  # TTS缓存 + 录音 + 通话指标 + TFTP配置
+      - ./models:/app/models              # ONNX 模型（挂载，不打包进镜像）
+      - callback-audio:/app/shared        # 回拨音频共享
+    networks:
+      - voip-net
+    environment:
+      - TZ=Asia/Shanghai
+    depends_on:
+      - freepbx
+
+networks:
+  voip-net:
+    driver: bridge
+
+volumes:
+  callback-audio:

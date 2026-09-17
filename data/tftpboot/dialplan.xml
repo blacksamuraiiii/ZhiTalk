@@ -1,0 +1,30 @@
+<DIALTEMPLATE>
+    <!-- 紧急号码：拨满立即出号 -->
+    <TEMPLATE MATCH="110" Timeout="0" User="Phone"/>
+    <TEMPLATE MATCH="119" Timeout="0" User="Phone"/>
+    <TEMPLATE MATCH="120" Timeout="0" User="Phone"/>
+    <TEMPLATE MATCH="911" Timeout="0" User="Phone"/>
+
+    <!-- 内部分机 3 位（100-899），1 秒出号。200/201=虚拟回拨分机；9xx 保留不分配 -->
+    <TEMPLATE MATCH="[1-8].." Timeout="1" User="Phone"/>
+
+    <!-- 手机 11 位（1 开头，第 2 位 3-9），拨满立即出号 -->
+    <TEMPLATE MATCH="1[3-9]XXXXXXXXX" Timeout="0" User="Phone"/>
+
+    <!-- 本地固话 8 位（首位 2-8），2 秒出号（或按 #） -->
+    <TEMPLATE MATCH="[2-8]XXXXXXX" Timeout="2" User="Phone"/>
+
+    <!-- 带区号固话 12 位（0 开头），拨满立即出号 -->
+    <TEMPLATE MATCH="0XXXXXXXXXXX" Timeout="0" User="Phone"/>
+
+    <!-- AI 入口：单键 9，立即出号 -->
+    <TEMPLATE MATCH="9" Timeout="0" User="Phone"/>
+
+    <!-- 功能码（* 开头） -->
+    <TEMPLATE MATCH="\*.." Timeout="0" User="Phone"/>
+    <TEMPLATE MATCH="\*..." Timeout="0" User="Phone"/>
+    <TEMPLATE MATCH="\*...." Timeout="0" User="Phone"/>
+
+    <!-- 兜底 -->
+    <TEMPLATE MATCH="*" Timeout="20" User="Phone"/>
+</DIALTEMPLATE>

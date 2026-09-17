@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreePBX 配置 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+.main{max-width:none}
+.form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">FreePBX 连接配置</div>
+  <form id="form">
+    <div class="form-grid">
+      <div class="form-group"><label>ATA190 地址</label><input type="text" id="ata_ip"><div class="hint">ATA190 从 DHCP 获取的 IP</div></div>
+      <div class="form-group"><label>FreePBX IP</label><input type="text" id="host_ip"><div class="hint">宿主机对外地址（写入 pjsip.conf SDP）</div></div>
+      <div class="form-group"><label>AMI 端口</label><input type="number" id="ami_port"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>AMI 用户名</label><input type="text" id="ami_user"></div>
+      <div class="form-group"><label>AMI 密码</label><input type="password" id="ami_secret"></div>
+      <div class="form-group"><label>来电显示</label><input type="text" id="callback_caller_id"><div class="hint">外呼时显示的主叫名称</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:24px">
+      <button type="submit" class="btn" id="saveBtn">保存</button>
+      <button type="button" class="btn btn-secondary" onclick="load()">重新加载</button>
+    </div>
+  </form>
+  <div id="toast" style="display:none"></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t;e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function load(){
+  var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='加载中...';
+  fetch('/api/config/freepbx').then(r=>r.json()).then(d=>{Object.keys(d).forEach(k=>{var e=document.getElementById(k);if(e)e.value=d[k]});toast('已加载','success');b.disabled=false;b.textContent='保存'}).catch(()=>{toast('加载失败','error');b.disabled=false;b.textContent='保存'})
+}
+document.getElementById('form').addEventListener('submit',function(e){
+  e.preventDefault();var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='保存中...';
+  var d={};['ata_ip','host_ip','ami_port','ami_user','ami_secret','callback_caller_id'].forEach(k=>{var e=document.getElementById(k);if(e)d[k]=e.value});
+  fetch('/api/config/freepbx',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(r=>r.json()).then(()=>{toast('已保存','success');b.disabled=false;b.textContent='保存'}).catch(()=>{toast('保存失败','error');b.disabled=false;b.textContent='保存'})
+});
+window.onload=load;
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

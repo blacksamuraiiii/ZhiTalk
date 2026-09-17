@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>llama-server - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+.main{max-width:none}
+.toolbar{display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.toolbar .status{font-size:13px;color:#94a3b8;margin-left:auto;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:#64748b;flex-shrink:0}
+.dot.green{background:#34d399;box-shadow:0 0 6px rgba(52,211,153,.7)}
+.dot.red{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.7)}
+.btn-start{background:#16a34a !important}
+.btn-start:hover{background:#15803d !important}
+.btn-start:disabled{opacity:.5}
+.hint{font-size:12px;color:#64748b;margin-bottom:12px}
+#log-container{background:#0a0f1e;border:1px solid #1e293b;border-radius:8px;padding:14px;height:calc(100vh - 300px);overflow-y:auto;font-size:12.5px;line-height:1.6;font-family:'SF Mono',ui-monospace,Consolas,monospace}
+.log-line{color:#94a3b8;white-space:pre-wrap;word-break:break-all;padding:1px 0}
+.footer{margin-top:16px;padding-top:12px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">llama-server</div>
+  <div class="toolbar">
+    <button class="btn btn-start" id="btnStart" onclick="startServer()">启动</button>
+    <button class="btn btn-danger" id="btnStop" onclick="stopServer()">停止</button>
+    <button class="btn btn-secondary" onclick="clearLog()">清除日志</button>
+    <button class="btn btn-secondary" onclick="exportLog()">导出日志</button>
+    <span class="status"><span class="dot gray" id="dot"></span><span id="statusText">连接中…</span></span>
+  </div>
+  <div class="hint">服务由 WSL 侧 llama-bridge.py 管理，WSL 重启后需手动执行 start-bridge.sh</div>
+  <div id="log-container"><div class="log-line" id="placeholder">暂无日志</div></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+var autoScroll=true;
+var state={online:null,running:null};
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function setStatus(text,cls){
+  document.getElementById('dot').className='dot '+(cls||'gray');
+  document.getElementById('statusText').textContent=text;
+}
+
+/* ── 状态轮询 ── */
+function fetchStatus(){
+  fetch('/api/llm/local/control/status').then(r=>r.json()).then(d=>{
+    state.online=(d.online!==false);
+    if(!state.online){ state.running=false; setStatus('桥未运行','gray'); return; }
+    state.running=!!d.running;
+    if(d.running){
+      var pid=d.pid||'?';
+      var m=d.model?(' · '+esc(d.model)):'';
+      setStatus('运行中 PID '+pid+m,'green');
+    }else{
+      setStatus('已停止','red');
+    }
+  }).catch(function(){ state.online=false; state.running=false; setStatus('桥未连接','gray'); });
+}
+
+/* ── 日志轮询 ── */
+function fetchLog(){
+  fetch('/api/llm/local/control/log?lines=200').then(r=>r.json()).then(d=>{
+    if(d.online===false)return;
+    var c=document.getElementById('log-container');
+    var lines=d.lines||[];
+    var p=document.getElementById('placeholder');
+    if(p)p.remove();
+    if(lines.length===0){
+      c.innerHTML='<div class="log-line">暂无日志</div>';
+      return;
+    }
+    c.innerHTML='';
+    lines.forEach(function(l){
+      var div=document.createElement('div');
+      div.className='log-line';div.textContent=l;
+      c.appendChild(div);
+    });
+    if(autoScroll){c.scrollTop=c.scrollHeight;}
+  }).catch(function(){});
+}
+
+/* ── 操作 ── */
+function startServer(){
+  var btn=document.getElementById('btnStart');
+  btn.disabled=true;
+  fetch('/api/llm/local/control/start',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.ok){ fetchStatus(); fetchLog(); }
+    else{alert('启动失败：'+(d.error||'未知错误'));}
+  }).catch(function(){alert('启动失败：无法连接');}).finally(function(){btn.disabled=false;});
+}
+function stopServer(){
+  if(!confirm('确定停止 llama-server 吗？通话推理将暂时不可用。'))return;
+  fetch('/api/llm/local/control/stop',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.ok){ fetchStatus(); fetchLog(); }
+    else{alert('停止失败：'+(d.error||'未知错误'));}
+  }).catch(function(){alert('停止失败：无法连接');});
+}
+function clearLog(){
+  fetch('/api/llm/local/control/log/clear',{method:'POST'}).then(r=>r.json()).then(d=>{
+    if(d.ok){
+      document.getElementById('log-container').innerHTML='<div class="log-line">日志已清除</div>';
+      fetchLog();
+    }else{alert('清除失败：'+(d.error||'未知错误'));}
+  }).catch(function(){alert('清除失败：无法连接');});
+}
+function exportLog(){
+  fetch('/api/llm/local/control/log?lines=1000').then(r=>r.json()).then(d=>{
+    if(d.online===false){alert('桥未运行，无法导出');return;}
+    var text='\ufeff'+(d.lines||[]).join('\n');  // \ufeff=UTF-8 BOM，防 Windows 记事本按 ANSI 打开中文乱码
+    var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+    var a=document.createElement('a');
+    var ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    a.href=URL.createObjectURL(blob);
+    a.download='llama-server_'+ts+'.log';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }).catch(function(){alert('导出失败：无法连接');});
+}
+
+/* ── 自动滚动：用户上翻暂停 ── */
+var logBox=document.getElementById('log-container');
+logBox.addEventListener('scroll',function(){
+  autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
+});
+
+fetchStatus();fetchLog();
+setInterval(fetchStatus,3000);
+setInterval(fetchLog,3000);
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

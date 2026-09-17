@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TFTP 管理 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有 */
+.main{max-width:none}
+table{margin-top:16px}
+td a{color:#38bdf8;text-decoration:none;cursor:pointer}
+td a:hover{color:#0ea5e9}
+.btn-sm-green{background:#10b981}.btn-sm-green:hover{background:#059669}
+.btn-new{background:#10b981}.btn-new:hover{background:#059669}
+.btn-upload{background:#7c3aed}.btn-upload:hover{background:#6d28d9}
+.file-size{color:#94a3b8;font-size:12px}
+.file-time{color:#64748b;font-size:12px}
+.editor-box{margin-top:16px}
+.editor-box textarea{width:100%;min-height:300px;padding:12px;background:#0a0f1e;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:13px;font-family:monospace;line-height:1.6;resize:vertical;outline:none}
+.editor-box textarea:focus{border-color:#0ea5e9}
+.editor-toolbar{display:flex;gap:12px;margin-top:12px;align-items:center}
+.upload-area{border:2px dashed #334155;border-radius:10px;padding:24px;text-align:center;margin-top:16px}
+.upload-area.dragover{border-color:#0ea5e9;background:#0f172a}
+.upload-area p{color:#94a3b8;font-size:14px;margin-bottom:12px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">TFTP 管理</div>
+
+  <div class="section-title">文件列表</div>
+  <div style="display:flex;gap:12px;margin-bottom:8px;align-items:center">
+    <button class="btn" onclick="loadFiles()">刷新</button>
+    <button class="btn btn-new" onclick="newFile()">+ 新建</button>
+  </div>
+  <table>
+    <thead><tr><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead>
+    <tbody id="file-list"><tr><td colspan="4">加载中...</td></tr></tbody>
+  </table>
+
+  <div id="editor-section" class="editor-box card" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="color:#e2e8f0;font-size:14px;font-weight:600" id="editor-filename">--</span>
+      <span style="color:#64748b;font-size:12px">编辑后点击保存写入文件</span>
+    </div>
+    <textarea id="file-content" spellcheck="false"></textarea>
+    <div class="editor-toolbar">
+      <button class="btn" id="btn-save" onclick="saveFile()">保存</button>
+      <button class="btn btn-secondary" onclick="hideEditor()">关闭</button>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:30px">上传固件</div>
+  <div class="upload-area card" id="upload-area">
+    <p>选择 .bin.sgn / .bin / .loads 等固件文件上传到 TFTP 目录</p>
+    <input type="file" id="file-input" style="display:none" onchange="uploadFile(this.files)">
+    <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">选择文件上传</button>
+  </div>
+
+  <div id="toast" style="display:none"></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t;e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function formatSize(s){if(s>1048576)return (s/1048576).toFixed(1)+' MB';if(s>1024)return (s/1024).toFixed(1)+' KB';return s+' B'}
+function formatTime(ts){var d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
+function loadFiles(){
+  var tb=document.getElementById('file-list');tb.innerHTML='<tr><td colspan="4">加载中...</td></tr>';
+  fetch('/api/tftp/files').then(r=>r.json()).then(d=>{
+    var files=d.files||[];
+    if(files.length===0){tb.innerHTML='<tr><td colspan="4">无文件</td></tr>';return}
+    tb.innerHTML=files.map(function(f){
+      var nameHtml='<a onclick="openFile(\''+f.name.replace(/'/g,"\\'")+'\')">'+f.name+'</a>';
+      var delBtn='<button class="btn-sm btn-del" onclick="deleteFile(\''+f.name.replace(/'/g,"\\'")+'\')">删除</button>';
+      var editBtn='<button class="btn-sm btn-edit" onclick="openFile(\''+f.name.replace(/'/g,"\\'")+'\')" style="margin-right:4px">编辑</button>';
+      var dldBtn='<button class="btn-sm btn-sm-green" onclick="downloadFile(\''+f.name.replace(/'/g,"\\'")+'\')" style="margin-right:4px">下载</button>';
+      return '<tr><td>'+nameHtml+'</td><td class="file-size">'+formatSize(f.size)+'</td><td class="file-time">'+formatTime(f.mtime)+'</td><td>'+editBtn+dldBtn+delBtn+'</td></tr>';
+    }).join('');
+  }).catch(function(){tb.innerHTML='<tr><td colspan="4">加载失败</td></tr>';toast('加载文件列表失败','error')});
+}
+function newFile(){
+  var name=prompt('请输入新文件名（如 myconfig.xml）：');
+  if(!name||!name.trim())return;
+  name=name.trim();
+  document.getElementById('editor-filename').textContent=name;
+  document.getElementById('file-content').value='';
+  document.getElementById('editor-section').style.display='block';
+}
+function openFile(name){
+  document.getElementById('editor-filename').textContent=name;
+  document.getElementById('file-content').value='加载中...';
+  document.getElementById('editor-section').style.display='block';
+  fetch('/api/tftp/read?file='+encodeURIComponent(name)).then(r=>r.json()).then(d=>{
+    if(d.error){document.getElementById('file-content').value='错误: '+d.error;toast(d.error,'error');return}
+    document.getElementById('file-content').value=d.content;
+  }).catch(function(){document.getElementById('file-content').value='加载失败';toast('读取文件失败','error')});
+}
+function hideEditor(){document.getElementById('editor-section').style.display='none'}
+function saveFile(){
+  var name=document.getElementById('editor-filename').textContent;
+  var content=document.getElementById('file-content').value;
+  var btn=document.getElementById('btn-save');btn.disabled=true;btn.textContent='保存中...';
+  fetch('/api/tftp/write',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:name,content:content})})
+  .then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){toast('已保存','success');loadFiles()}else{toast(d.error||'保存失败','error')}
+  }).catch(function(){toast('保存失败','error')}).finally(function(){btn.disabled=false;btn.textContent='保存'});
+}
+function deleteFile(name){
+  if(!confirm('确定删除文件 '+name+' 吗？'))return;
+  fetch('/api/tftp/write',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:name,content:null})})
+  .then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){toast('已删除','success');hideEditor();loadFiles()}else{toast(d.error||'删除失败','error')}
+  }).catch(function(){toast('删除失败','error')});
+}
+function downloadFile(name){
+  window.location.href='/api/tftp/read?file='+encodeURIComponent(name);
+}
+function uploadFile(files){
+  if(!files||files.length===0)return;
+  var f=files[0];
+  var fd=new FormData();fd.append('file',f);
+  var btn=document.querySelector('.btn-upload');btn.disabled=true;btn.textContent='上传中...';
+  fetch('/api/tftp/upload',{method:'POST',body:fd})
+  .then(r=>r.json()).then(d=>{
+    if(d.status==='ok'){toast('上传成功: '+d.file,'success');loadFiles()}else{toast(d.error||'上传失败','error')}
+  }).catch(function(){toast('上传失败','error')}).finally(function(){btn.disabled=false;btn.textContent='选择文件上传';document.getElementById('file-input').value=''});
+}
+// Drag-and-drop
+var ua=document.getElementById('upload-area');
+ua.addEventListener('dragover',function(e){e.preventDefault();ua.classList.add('dragover')});
+ua.addEventListener('dragleave',function(){ua.classList.remove('dragover')});
+ua.addEventListener('drop',function(e){e.preventDefault();ua.classList.remove('dragover');if(e.dataTransfer.files.length>0)uploadFile(e.dataTransfer.files)});
+window.onload=loadFiles;
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

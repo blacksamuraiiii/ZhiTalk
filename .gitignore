@@ -1,0 +1,56 @@
+# 运行配置（含真实 API Key / AMI 密码，不上传；提交 config.yaml.example 模板）
+config.yaml
+
+# 数据目录（仅排除运行时自动生成的子目录；tftpboot/asterisk2 配置需提交）
+data/audio/
+data/tts_cache/
+data/metrics/
+data/records/
+
+# 模型文件（挂载进容器，不上传；仅提交 models/README.md 下载说明）
+models/*
+!models/README.md
+
+# 参考项目（git submodule 关联，见下方 submodule 配置）
+
+# ATA190 固件（不上传，从 Cisco 官网下载）
+cisco-ata190固件/
+
+# 文档（仅排除敏感/大子目录，其余上传；私库，无妨）
+docs/complete/
+docs/plan/
+docs/test/
+docs/2026*OPC*创新大赛*/
+
+# 参赛 PPT
+opc-ppt/
+microsip/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# win-soft 二进制文件（不进 git，免杀毒误报/LFS限制）
+win-soft/**/*.exe
+
+# Hermes 本地目录（计划/会话缓存，不上传）
+.hermes/
+
+# 虚拟环境
+.venv/
+*.egg-info/
+
+# 开发服务器
+dev_server.py
+
+# IDE
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+# public 发布排除（本地保留，不入库）
+data/asterisk2/
+docs/

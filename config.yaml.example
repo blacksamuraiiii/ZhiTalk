@@ -1,0 +1,107 @@
+# 固话智连（智话通）AI 后端配置模板
+# 用法：复制本文件为 config.yaml，按需修改敏感值（api_key / ami_secret 等）
+network:
+  flask_host: 0.0.0.0
+  flask_port: 8080
+  audiosocket_host: 0.0.0.0
+  audiosocket_port: 9090
+freepbx:
+  host: freepbx
+  ami_port: '5038'
+  ami_user: aiuser
+  ami_secret: aipass123              # ⚠ 生产环境请修改默认密码
+  callback_channel: PJSIP/100
+  callback_context: from-internal
+  callback_exten: '200'
+  callback_caller_id: AI助手
+asr:
+  provider: zipformer
+  zipformer:
+    model_dir: ASR/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30
+    encoder: ASR/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30/encoder.int8.onnx
+    decoder: ASR/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30/decoder.onnx
+    joiner: ASR/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30/joiner.int8.onnx
+    tokens_file: ASR/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30/tokens.txt
+    threads: '4'
+    sample_rate: 16000
+    enable_endpoint_detection: true
+    rule1_min_trailing_silence: '1.8'
+    rule2_min_trailing_silence: '2'
+    rule3_min_utterance_length: '30'
+llm:
+  provider: openai_compat
+  api_base: https://api.deepseek.com/v1
+  api_key: sk-your-deepseek-api-key   # ⚠ 改成你的真实 API Key
+  model: deepseek-v4-flash
+  system_prompt: 用简洁自然的中文口语回答。回答必须简短：通常只用1-2句话回答，最多不超过3句；直接给结论，不要用「好的」「没问题」等口头禅开头，不要复述用户问题，不要铺垫、不要展开解释。必须使用中文标点（，。！？）分句，严禁用空格代替标点分隔句子。不使用任何标点符号之外的格式标记（如**、*、#、>、`等）。每句话控制在30字以内，不使用表情符号，不用markdown格式。如遇纯英文内容，按英文句尾标点（. ! ?）自然分句。
+  max_tokens: 200
+  max_turns: 20
+  max_history: 10
+  first_token_timeout: 5
+  total_timeout: 20
+  callback_timeout: 60
+tts:
+  provider: matcha-zh-en-8k
+  edge:
+    voice: zh-CN-XiaoxiaoNeural
+    rate: +0%
+    volume: +0%
+    connect_timeout: '5'
+    receive_timeout: '30'
+    cache_dir: data/tts_cache_edge
+  matcha-zh-en-8k:
+    model_dir: TTS/matcha-zh-en-8k
+    speed: '1.0'
+    noise_scale: '1.0'
+    length_scale: '1.0'
+    num_steps: '10'
+    threads: 4
+    cache_dir: data/tts_cache_matcha
+vad:
+  vad_engine: tenvad
+  tenvad:
+    model: models/VAD/ten-vad.int8.onnx
+    min_silence_duration: 2.0
+    min_speech_duration: 0.1
+    threshold: 0.5
+  threshold: 500
+  adapt_threshold: true
+  silence_timeout: 800
+  max_keep_silence_ms: 200
+  min_speech: 300
+  max_speech: 50
+  pre_buffer_frames: 5
+callback:
+  max_retries: 3
+  retry_delay: 900
+  ring_timeout: 30
+search:
+  enabled: true
+  provider: anysearch            # 搜索引擎（默认 anysearch，预留扩展）
+  api_key: ""                    # 匿名访问（留空）；如需扩容填 Key
+  max_results: 3                 # 请求时源头限流（1-10）
+  timeout: 30.0                   # 搜索超时秒数
+  max_len: 300                   # 每条 body 截断字数
+  cache_ttl:                     # 结果缓存（秒）
+    finance: 300
+    weather: 600
+    general: 3600
+  patterns:                      # 触发搜索关键词（| 分隔，weather > finance > general）
+    finance: "收盘价|股价|涨跌|市值|市盈率|汇率|财报|A股|美股|港股|基金|理财|行情|大盘|指数|涨停|跌停|IPO|股票"
+    weather: "天气|气温|下雨|下雪|台风|降温|升温|雾霾|风力|湿度|紫外线|AQI|空气质量"
+    general: "最新|新闻|刚刚|上市|发布会|发布了|推出|排名"
+  negate: "(今天|昨天|明天|本周|这周|2024|2025|2026).*(心情|感觉|想吃|打算|去|来|约|请|帮忙|帮|给|让)"
+scheduler:
+  enabled: false
+  jobs: []
+  # jobs 条目结构：
+  # - id: "job-0001"
+  #   name: "每日天气播报"
+  #   enabled: true
+  #   freq: daily            # once | daily | weekly | interval
+  #   time: "08:00"          # HH:MM（once/daily/weekly）
+  #   date: ""               # once 时：YYYY-MM-DD
+  #   weekday: 0             # weekly 时：0-6（周一=0）
+  #   interval_min: 30       # interval 时：每 N 分钟
+  #   content: "播报文本"
+  #   caller: "101"          # 主叫号码（拨打的分机）

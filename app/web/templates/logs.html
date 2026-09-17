@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>通话日志 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有 */
+.main{max-width:none}
+.toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+.toolbar .status{font-size:13px;color:#94a3b8;margin-left:auto}
+#log-container{background:#0a0f1e;border:1px solid #1e293b;border-radius:8px;padding:16px;height:calc(100vh - 200px);overflow-y:auto;font-size:13px;line-height:1.7}
+.log-line{color:#94a3b8;white-space:pre-wrap;word-break:break-all;padding:1px 0}
+.log-line.ai{color:#34d399}
+.log-line.user{color:#38bdf8}
+.log-line.error{color:#f87171}
+.footer{margin-top:16px;padding-top:12px}
+
+/* ── 二级弹窗（历史查询 / 详情）── */
+#history-modal .modal-box,#detail-modal .modal-box{width:860px;max-width:94vw;max-height:85vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:14px;border:1px solid #334155;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+#detail-modal .modal-box{width:660px}
+.modal-head{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--border-line);background:linear-gradient(135deg,rgba(14,165,233,.14),rgba(14,165,233,0) 60%)}
+.modal-head .micon{width:36px;height:36px;border-radius:10px;background:rgba(14,165,233,.16);display:flex;align-items:center;justify-content:center;color:#38bdf8;flex-shrink:0;font-size:18px}
+.modal-head h3{font-size:16px;font-weight:700;color:var(--text-heading);margin:0;flex:1}
+.modal-head .mcount{font-size:12px;color:#7dd3fc;background:rgba(14,165,233,.14);padding:3px 12px;border-radius:20px;font-weight:600}
+.modal-close{width:30px;height:30px;border:none;background:transparent;color:#94a3b8;font-size:22px;cursor:pointer;border-radius:8px;line-height:1;transition:all .15s}
+.modal-close:hover{background:var(--bg-hover);color:#e2e8f0}
+
+.history-search{display:flex;gap:10px;padding:14px 22px;border-bottom:1px solid var(--border-line);align-items:center}
+.history-search input{flex:1;margin:0;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border-line);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;box-sizing:border-box;font-family:inherit}
+.history-search input:focus{border-color:var(--accent)}
+.history-table-wrap{flex:1;overflow-y:auto;padding:8px 22px;min-height:0}
+.history-table{width:100%;border-collapse:collapse}
+.history-table thead th{position:sticky;top:0;background:var(--bg-card);padding:10px 12px;font-size:12px;color:#64748b;border-bottom:1px solid var(--border-line);text-align:left;font-weight:600;letter-spacing:.3px;z-index:1}
+.history-table tbody tr{border-bottom:1px solid rgba(51,65,85,.4)}
+.history-table tbody tr:nth-child(odd){background:rgba(51,65,85,.14)}
+.history-table tbody tr:hover{background:rgba(14,165,233,.08)}
+.history-table td{padding:10px 12px;font-size:13px;color:var(--text-primary)}
+.history-table .num{font-family:'SF Mono',ui-monospace,Consolas,monospace;font-size:12px;color:#7dd3fc}
+.history-table .ops{white-space:nowrap}
+.history-table .ops .btn-sm{margin-right:6px}
+.history-table .empty,.detail-transcript .empty{text-align:center;color:#64748b;padding:32px 0;font-size:13px}
+.history-foot{display:flex;align-items:center;gap:10px;padding:14px 22px;border-top:1px solid var(--border-line)}
+.pg-info{margin-right:auto;font-size:12px;color:var(--text-dim)}
+
+/* 详情弹窗 */
+.detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;padding:14px 22px;border-bottom:1px solid var(--border-line)}
+.detail-meta .item{font-size:13px;color:var(--text-muted)}
+.detail-meta .item b{color:var(--text-primary);font-weight:600;margin-left:6px}
+.detail-transcript{flex:1;overflow-y:auto;padding:14px 22px;min-height:0}
+.detail-transcript .t-user{color:#38bdf8;padding:6px 0;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.detail-transcript .t-user::before{content:'👤 ';opacity:.7}
+.detail-transcript .t-ai{color:#34d399;padding:6px 0 10px;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.detail-transcript .t-ai::before{content:'🤖 ';opacity:.7}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">通话日志</div>
+  <div class="toolbar">
+    <button class="btn btn-secondary" onclick="clearLogs()">清除</button>
+    <button class="btn btn-secondary" onclick="exportLogs()">导出</button>
+    <button class="btn btn-secondary" onclick="scrollBottom()">底部</button>
+    <button class="btn" onclick="openHistory()">历史查询</button>
+    <span class="status" id="status">0 条日志</span>
+  </div>
+  <div id="log-container"><div class="log-line" id="placeholder">暂无日志</div></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+
+<!-- 历史查询弹窗 -->
+<div class="modal-overlay" id="history-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="micon">📋</div>
+      <h3>通话历史</h3>
+      <span class="mcount" id="history-count">0 条</span>
+      <button type="button" class="modal-close" onclick="closeHistory()">×</button>
+    </div>
+    <div class="history-search">
+      <input id="history-keyword" placeholder="搜索主叫 / 被叫号码（回车或点搜索）" onkeydown="if(event.key==='Enter')searchHistory()">
+      <button type="button" class="btn btn-secondary" onclick="searchHistory()">搜索</button>
+    </div>
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead><tr>
+          <th>主叫号码</th><th>被叫号码</th><th>通话开始时间</th><th>通话结束时间</th><th style="width:130px">操作</th>
+        </tr></thead>
+        <tbody id="history-tbody"></tbody>
+      </table>
+    </div>
+    <div class="history-foot">
+      <span class="pg-info" id="history-pageinfo"></span>
+      <button type="button" class="btn-sm btn-toggle" onclick="historyPage(-1)">上一页</button>
+      <button type="button" class="btn-sm btn-toggle" onclick="historyPage(1)">下一页</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通话详情弹窗 -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="micon">💬</div>
+      <h3 id="detail-title">通话详情</h3>
+      <button type="button" class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="detail-meta" id="detail-meta"></div>
+    <div class="detail-transcript" id="detail-transcript"></div>
+  </div>
+</div>
+
+<script>
+var autoScroll=true;
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ── 实时日志 ── */
+function fetchLogs(){
+  fetch('/api/logs').then(r=>r.json()).then(d=>{
+    var c=document.getElementById('log-container');
+    var logs=d.logs||[];
+    var p=document.getElementById('placeholder');
+    if(logs.length===0){
+      if(p)p.textContent='暂无日志';
+      document.getElementById('status').textContent='0 条日志';
+      return;
+    }
+    if(p)p.remove();
+    c.innerHTML='';
+    logs.forEach(function(l){
+      var cls='log-line';
+      if(l.indexOf('[AI]')>=0)cls+=' ai';
+      else if(l.indexOf('[用户]')>=0)cls+=' user';
+      else if(l.indexOf('错误')>=0||l.indexOf('异常')>=0||l.indexOf('Error')>=0)cls+=' error';
+      var div=document.createElement('div');
+      div.className=cls;div.textContent=l;
+      c.appendChild(div);
+    });
+    if(autoScroll){c.scrollTop=c.scrollHeight;}
+    document.getElementById('status').textContent=logs.length+' 条日志';
+  });
+}
+function clearLogs(){fetch('/api/logs/clear',{method:'POST'}).then(function(){fetchLogs()})}
+function scrollBottom(){var c=document.getElementById('log-container');c.scrollTop=c.scrollHeight;autoScroll=true}
+function exportLogs(){
+  fetch('/api/logs').then(r=>r.json()).then(d=>{
+    var text=(d.logs||[]).join('\n');
+    var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+    var a=document.createElement('a');
+    var ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    a.href=URL.createObjectURL(blob);
+    a.download='通话日志_'+ts+'.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+
+/* ── 历史查询 ── */
+var histPage=1,histPageSize=20,histKeyword='';
+function openHistory(){
+  histPage=1;histKeyword='';
+  document.getElementById('history-keyword').value='';
+  document.getElementById('history-modal').classList.add('active');
+  loadHistory();
+}
+function closeHistory(){document.getElementById('history-modal').classList.remove('active');}
+function searchHistory(){
+  histKeyword=document.getElementById('history-keyword').value.trim();
+  histPage=1;
+  loadHistory();
+}
+function historyPage(delta){
+  histPage+=delta;
+  if(histPage<1)histPage=1;
+  loadHistory();
+}
+function loadHistory(){
+  var url='/api/calls?page='+histPage+'&page_size='+histPageSize+'&keyword='+encodeURIComponent(histKeyword);
+  fetch(url).then(r=>r.json()).then(d=>{
+    var tbody=document.getElementById('history-tbody');
+    tbody.innerHTML='';
+    var calls=d.calls||[];
+    var total=d.total||0;
+    document.getElementById('history-count').textContent=total+' 条';
+    if(calls.length===0){
+      tbody.innerHTML='<tr><td colspan="5" class="empty">暂无通话记录</td></tr>';
+      document.getElementById('history-pageinfo').textContent='共 0 条';
+      return;
+    }
+    calls.forEach(function(c){
+      var tr=document.createElement('tr');
+      var callee=c.callee||'—';
+      var type=c.is_callback?'<span style="color:#fbbf24">回拨</span>':'<span style="color:#7dd3fc">正常</span>';
+      var cell='<td class="num">'+esc(c.caller||'—')+'</td>'
+        +'<td class="num">'+esc(callee)+' '+type+'</td>'
+        +'<td>'+esc(c.start_time||'—')+'</td>'
+        +'<td>'+esc(c.end_time||'—')+'</td>'
+        +'<td class="ops"><button type="button" class="btn-sm btn-edit" onclick="viewCall(\''+c.call_id+'\')">查看</button>'
+        +'<button type="button" class="btn-sm btn-toggle" onclick="exportCall(\''+c.call_id+'\')">导出</button></td>';
+      tr.innerHTML=cell;
+      tbody.appendChild(tr);
+    });
+    var totalPages=Math.max(1,Math.ceil(total/histPageSize));
+    document.getElementById('history-pageinfo').textContent='第 '+histPage+' / '+totalPages+' 页 · 共 '+total+' 条';
+  });
+}
+
+/* ── 通话详情 ── */
+function viewCall(callId){
+  fetch('/api/calls/'+callId).then(r=>r.json()).then(d=>{
+    if(d.error){alert(d.error);return;}
+    var dur=(d.duration_s||0)+' 秒';
+    var type=d.is_callback?'系统回拨':'正常拨入';
+    // 标题加 UUID
+    document.getElementById('detail-title').textContent='通话详情 UUID：'+callId;
+    document.getElementById('detail-meta').innerHTML=
+      '<div class="item">主叫号码<b>'+esc(d.caller||'—')+'</b></div>'
+      +'<div class="item">被叫号码<b>'+esc(d.callee||'—')+'</b></div>'
+      +'<div class="item">通话开始<b>'+esc(d.start_time||'—')+'</b></div>'
+      +'<div class="item">通话结束<b>'+esc(d.end_time||'—')+'</b></div>'
+      +'<div class="item">通话时长<b>'+esc(dur)+'</b></div>'
+      +'<div class="item">通话类型<b>'+esc(type)+'</b></div>';
+    var trans=document.getElementById('detail-transcript');
+    var turns=d.turns||[];
+    if(turns.length===0){
+      trans.innerHTML='<div class="empty">该通话无对话内容</div>';
+    }else{
+      var html='';
+      turns.forEach(function(t){
+        if(t.user_text)html+='<div class="t-user">'+esc(t.user_text)+'</div>';
+        if(t.ai_text)html+='<div class="t-ai">'+esc(t.ai_text)+'</div>';
+      });
+      trans.innerHTML=html;
+    }
+    document.getElementById('detail-modal').classList.add('active');
+  });
+}
+function closeDetail(){document.getElementById('detail-modal').classList.remove('active');}
+function exportCall(callId){window.open('/api/calls/'+callId+'/export','_blank');}
+
+// 监听滚动：用户往上翻（离开底部>30px）→ 停止自动滚动
+var logBox=document.getElementById('log-container');
+logBox.addEventListener('scroll',function(){
+  autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
+});
+setInterval(fetchLogs,1000);
+fetchLogs();
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

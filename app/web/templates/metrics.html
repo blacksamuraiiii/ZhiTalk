@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智话通 - 通话指标</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.kpi-card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:16px 20px}
+.kpi-card .kpi-val{font-size:26px;font-weight:700;color:#e2e8f0;margin-bottom:4px}
+.kpi-card .kpi-label{font-size:12px;color:#64748b}
+.kpi-card .kpi-val.ok{color:#34d399}.kpi-card .kpi-val.warn{color:#fbbf24}.kpi-card .kpi-val.err{color:#f87171}
+.status-bar{display:flex;gap:16px;margin-bottom:24px;font-size:12px;color:#64748b}
+.status-bar span.ok{color:#34d399}.status-bar span.loading{color:#fbbf24}
+table{width:100%;border-collapse:collapse;margin-bottom:24px;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;color:#64748b;border-bottom:1px solid #334155;font-weight:600}
+td{padding:8px 10px;color:#e2e8f0;border-bottom:1px solid #1e293b}
+tr:hover td{background:#1e293b}
+.tag-asr{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:rgba(56,189,248,0.12);color:#38bdf8;margin-right:4px}
+.tag-tts{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:rgba(168,85,247,0.12);color:#a855f7;margin-right:4px}
+.tag-llm{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;background:rgba(34,211,238,0.12);color:#22d3ee;margin-right:4px}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;margin-right:4px}
+.tag-timeout{background:rgba(251,191,36,0.12);color:#fbbf24}
+.tag-farewell{background:rgba(52,211,153,0.12);color:#34d399}
+.tag-hangup{background:rgba(100,116,139,0.15);color:#94a3b8}
+.tag-idle{background:rgba(251,191,36,0.12);color:#fbbf24}
+.tag-error{background:rgba(248,113,113,0.12);color:#f87171}
+.empty{text-align:center;padding:40px;color:#64748b;font-size:14px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">通话指标<button class="btn btn-secondary" onclick="loadMetrics()" style="margin-left:auto">刷新</button></div>
+
+  <div class="status-bar" id="status-bar"><span class="loading">加载中...</span></div>
+
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi-card"><div class="kpi-val" id="kpi-total">--</div><div class="kpi-label">累计通话</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-avg-dur">--</div><div class="kpi-label">平均时长(秒)</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-avg-turns">--</div><div class="kpi-label">平均轮次</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-timeout-rate">--</div><div class="kpi-label">超时率(%)</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-avg-ttft">--</div><div class="kpi-label">平均首包(ms)</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-avg-turn">--</div><div class="kpi-label">平均整轮(ms)</div></div>
+    <div class="kpi-card"><div class="kpi-val" id="kpi-avg-p95">--</div><div class="kpi-label">平均P95(ms)</div></div>
+  </div>
+
+  <div class="section-title">近期通话</div>
+  <div id="callTable"><div class="empty">暂无通话记录</div></div>
+
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')}
+function fmtTs(ts){if(!ts)return '--';var d=new Date(ts*1000);if(isNaN(d.getTime()))return ts;return d.toLocaleString('zh-CN')}
+function fmtDur(s){if(!s&&s!==0)return'--';if(s<60)return(s||0).toFixed(1)+'s';return Math.floor(s/60)+'m'+(s%60|0)+'s'}
+function fmtMs(ms){if(!ms&&ms!==0)return'--';if(ms>=1000)return(ms/1000).toFixed(1)+'s';return(ms||0).toFixed(0)+'ms'}
+
+// outcome 枚举 → 标签
+var OUTCOME_TAGS = {
+  'farewell':'<span class="tag tag-farewell">道别</span>',
+  'max_turns':'<span class="tag tag-hangup">轮次上限</span>',
+  'greeting_timeout':'<span class="tag tag-idle">开场超时</span>',
+  'idle_timeout':'<span class="tag tag-idle">静音超时</span>',
+  'timed_out':'<span class="tag tag-timeout">超时回拨</span>',
+  'hangup':'<span class="tag tag-hangup">挂机</span>',
+  'error':'<span class="tag tag-error">异常</span>'
+};
+
+function loadMetrics(){
+  var bar=document.getElementById('status-bar');
+  bar.innerHTML='<span class="loading">加载中...</span>';
+  fetch('/api/metrics').then(function(r){return r.json()}).then(function(d){
+    var calls=d.calls||[];
+    var s=d.summary||{};
+    document.getElementById('kpi-total').textContent=s.total||0;
+    document.getElementById('kpi-avg-dur').textContent=s.avg_duration_s?s.avg_duration_s.toFixed(1):'0';
+    document.getElementById('kpi-avg-turns').textContent=s.avg_turns?s.avg_turns.toFixed(1):'0';
+    document.getElementById('kpi-avg-ttft').textContent=fmtMs(s.avg_ttft_ms);
+    document.getElementById('kpi-avg-turn').textContent=fmtMs(s.avg_turn_ms);
+    document.getElementById('kpi-avg-p95').textContent=fmtMs(s.avg_p95_ms);
+    var tr=document.getElementById('kpi-timeout-rate');
+    tr.textContent=s.timeout_rate?s.timeout_rate.toFixed(1):'0';
+    tr.className='kpi-val'+(s.timeout_rate>20?' warn':'');
+
+    bar.innerHTML = '';
+
+    if(calls.length===0){
+      document.getElementById('callTable').innerHTML='<div class="empty">暂无通话记录</div>';
+      return;
+    }
+
+    var html='<table><thead><tr><th>时间</th><th>主叫</th><th>被叫</th><th>轮次</th><th>时长</th><th>首包</th><th>整轮</th><th>结果</th><th>引擎</th></tr></thead><tbody>';
+    for(var i=0;i<calls.length;i++){
+      var c=calls[i];
+      var tag=OUTCOME_TAGS[c.outcome]||'<span class="tag tag-hangup">'+esc(c.outcome||'未知')+'</span>';
+      var callerCell = c.is_callback
+        ? '<span class="tag tag-timeout">回拨</span>'+esc(c.caller||'')
+        : esc(c.caller||'');
+      var llmName=(c.llm||'').split('/').pop();
+      html+='<tr><td>'+fmtTs(c.start_ts)+'</td><td>'+callerCell+'</td><td>'+esc(c.callee||'')+'</td><td>'+(c.turn_count||0)+'</td><td>'+fmtDur(c.duration_s)+'</td><td>'+fmtMs(c.ttft_avg_ms)+'</td><td>'+fmtMs(c.turn_avg_ms)+'</td><td>'+tag+'</td><td><span class="tag-asr">'+esc(c.asr||'')+'</span><span class="tag-tts">'+esc(c.tts||'')+'</span>'+(llmName?'<span class="tag-llm">'+esc(llmName)+'</span>':'')+'</td></tr>';
+    }
+    html+='</tbody></table>';
+    document.getElementById('callTable').innerHTML=html;
+  }).catch(function(err){
+    bar.innerHTML='<span style="color:#f87171">加载失败: '+esc(String(err))+'</span>';
+  });
+}
+loadMetrics();
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

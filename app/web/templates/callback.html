@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>通话测试 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有：布局 */
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.form-row-13{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+.main{max-width:none}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">通话测试</div>
+
+  <form id="form">
+    <div class="form-row-3">
+      <div class="form-group"><label>重试次数</label><input type="number" id="max_retries"></div>
+      <div class="form-group"><label>重试间隔（秒）</label><input type="number" id="retry_delay"></div>
+      <div class="form-group"><label>振铃等待（秒）</label><input type="number" id="ring_timeout"></div>
+    </div>
+    <div class="form-row-13">
+      <div class="form-group"><label>目标号码</label>
+        <select id="target"></select>
+        <div class="hint">选择要外呼的分机</div>
+      </div>
+      <div class="form-group"><label>测试文本</label><input type="text" id="text" value="您好，这里是智话通的通话测试"><div class="hint">TTS合成后播放</div></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:24px">
+      <button type="submit" class="btn" id="saveBtn">保存</button>
+      <button type="button" class="btn btn-secondary" onclick="load()">重新加载</button>
+      <button type="button" class="btn" id="btn-callback">通话测试</button>
+      <button type="button" class="btn btn-danger" id="btn-hangup">挂断</button>
+    </div>
+  </form>
+
+  <div id="toast" style="display:none"></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+<script>
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t;e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function load(){
+  fetch('/api/config/callback').then(r=>r.json()).then(d=>{
+    Object.keys(d).forEach(k=>{var e=document.getElementById(k);if(e)e.value=d[k]})
+  });
+  // 加载分机列表到目标号码下拉框
+  fetch('/api/extensions').then(r=>r.json()).then(d=>{
+    var sel=document.getElementById('target');
+    var exts=d.extensions||[];
+    var html='';
+    exts.forEach(function(e){html+='<option value="'+e.name+'">'+e.name+'（'+(e.label||'')+'）</option>'});
+    if(!html)html='<option value="101">101（ATA190 座机）</option>';
+    sel.innerHTML=html;
+    if(exts.some(function(e){return e.name==='101'}))sel.value='101';
+  }).catch(function(){});
+}
+document.getElementById('form').addEventListener('submit',function(e){
+  e.preventDefault();var b=document.getElementById('saveBtn');b.disabled=true;b.textContent='保存中...';
+  var d={};['max_retries','retry_delay','ring_timeout'].forEach(k=>{var e=document.getElementById(k);if(e)d[k]=parseInt(e.value)});
+  fetch('/api/config/callback',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(r=>r.json()).then(()=>toast('已保存','success')).catch(()=>toast('失败','error'));b.disabled=false;b.textContent='保存'
+});
+document.getElementById('btn-callback').addEventListener('click',function(){
+  var btn=this;btn.disabled=true;btn.textContent='执行中...';
+  var d={target:document.getElementById('target').value,text:document.getElementById('text').value};
+  fetch('/api/callback/make',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+  .then(r=>r.json()).then(r=>{
+    if(r.status==='Success')toast('通话测试成功','success');else toast('通话: '+r.message,'error');
+  }).catch(e=>{toast('失败: '+e,'error')}).finally(()=>{btn.disabled=false;btn.textContent='通话测试'});
+});
+document.getElementById('btn-hangup').addEventListener('click',function(){
+  fetch('/api/callback/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'hangup_all'})}).then(r=>r.json()).then(r=>toast(r.message||'已执行','success')).catch(()=>toast('失败','error'));
+});
+window.onload=load;
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

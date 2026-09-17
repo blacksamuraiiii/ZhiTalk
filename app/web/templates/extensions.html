@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分机管理 - 智话通</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+/* 页面特有 */
+.main{max-width:none}
+.form-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;margin-bottom:16px}
+.btn-pass{background:#7c3aed}.btn-pass:hover{background:#6d28d9}
+.btn-cancel{background:#475569}.btn-cancel:hover{background:#64748b}
+.state-online{color:#34d399;font-weight:600}
+.state-offline{color:#64748b}
+.hint-box{margin-bottom:16px;font-size:12px;color:#94a3b8;line-height:1.6}
+table{margin-top:16px}
+</style></head><body>
+<div id="sidebar"></div>
+<div class="main">
+  <div class="page-title">分机管理</div>
+  <div class="hint-box card">
+    分机9：AI 助手（AudioSocket，拨9进入AI对话）<br>
+    分机200：回拨入口（AMI 外呼）
+  </div>
+  <div class="section-title">添加分机</div>
+  <form id="addForm">
+    <div class="form-row">
+      <div class="form-group"><label>分机号</label><input type="text" id="ext_num" placeholder="如 102"></div>
+      <div class="form-group"><label>密码</label><input type="text" id="ext_pass" placeholder="如 pass102"></div>
+      <div class="form-group"><label>描述</label><input type="text" id="ext_label" placeholder="如 办公室" disabled style="opacity:0.5"></div>
+      <div class="form-group"><label>&nbsp;</label><button type="submit" class="btn">添加</button></div>
+    </div>
+  </form>
+  <div class="section-title" style="margin-top:30px">当前分机</div>
+  <table>
+    <thead><tr><th>分机号</th><th>描述</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody id="ext-list"><tr><td colspan="4">加载中...</td></tr></tbody>
+  </table>
+  <div id="toast" style="display:none"></div>
+  <div class="footer">智话通 · blacksamuraiiii</div>
+</div>
+
+<!-- 编辑描述弹框 -->
+<div class="modal-overlay" id="modal-label">
+  <div class="modal-box">
+    <h3>编辑描述</h3>
+    <label>分机 <span id="ml-name"></span></label>
+    <input type="text" id="ml-val" placeholder="如 办公室座机">
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeModal('modal-label')">取消</button>
+      <button class="btn" onclick="saveLabel()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码弹框 -->
+<div class="modal-overlay" id="modal-pass">
+  <div class="modal-box">
+    <h3>修改密码</h3>
+    <label>分机 <span id="mp-name"></span></label>
+    <input type="text" id="mp-val" placeholder="新密码">
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeModal('modal-pass')">取消</button>
+      <button class="btn" onclick="savePassword()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认弹框 -->
+<div class="modal-overlay" id="modal-del">
+  <div class="modal-box">
+    <h3>确认删除</h3>
+    <p style="color:#94a3b8;margin-bottom:16px">确定要删除分机 <span id="md-name" style="color:#fca5a5"></span> 吗？此操作不可撤销。</p>
+    <div class="modal-btns">
+      <button class="btn btn-cancel" onclick="closeModal('modal-del')">取消</button>
+      <button class="btn btn-del" onclick="doDelete()">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var _curExt='';
+function toast(m,t){var e=document.getElementById('toast');e.textContent=m;e.className='toast '+t;e.style.display='block';setTimeout(function(){e.style.display='none'},3000)}
+function stateClass(s){return s==='在线'?'state-online':'state-offline'}
+function apiToast(r,d){toast(d.message||d.error||'操作完成',r.ok?'success':'error')}
+
+function openModal(id,name){
+  document.getElementById(id).classList.add('active');
+  _curExt=name;
+  if(id==='modal-label'){document.getElementById('ml-name').textContent=name;document.getElementById('ml-val').value=''}
+  if(id==='modal-pass'){document.getElementById('mp-name').textContent=name;document.getElementById('mp-val').value=''}
+  if(id==='modal-del'){document.getElementById('md-name').textContent=name}
+}
+function closeModal(id){document.getElementById(id).classList.remove('active')}
+
+function saveLabel(){
+  var v=document.getElementById('ml-val').value.trim();
+  if(!v){toast('描述不能为空','error');return}
+  fetch('/api/extensions/'+_curExt,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'label',value:v})})
+  .then(async r=>{var d=await r.json();apiToast(r,d);if(r.ok){closeModal('modal-label');loadExt()}})
+}
+function savePassword(){
+  var v=document.getElementById('mp-val').value.trim();
+  if(!v){toast('密码不能为空','error');return}
+  fetch('/api/extensions/'+_curExt,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'password',value:v})})
+  .then(async r=>{var d=await r.json();apiToast(r,d);if(r.ok){closeModal('modal-pass')}})
+}
+function doDelete(){
+  fetch('/api/extensions/'+_curExt,{method:'DELETE'})
+  .then(async r=>{var d=await r.json();apiToast(r,d);if(r.ok){closeModal('modal-del');loadExt()}})
+}
+
+function loadExt(){
+  fetch('/api/extensions').then(r=>r.json()).then(d=>{
+    var tb=document.getElementById('ext-list');
+    var exts=d.extensions||[];
+    if(exts.length===0){tb.innerHTML='<tr><td colspan="4">无分机</td></tr>';return}
+    tb.innerHTML=exts.map(function(e){return'<tr><td>'+e.name+'</td><td>'+(e.label||'-')+'</td><td class="'+stateClass(e.state)+'">'+e.state+'</td><td>'
+      +'<button class="btn-sm btn-edit" onclick="openModal(\'modal-label\',\''+e.name+'\')">编辑</button>'
+      +'<button class="btn-sm btn-pass" onclick="openModal(\'modal-pass\',\''+e.name+'\')">改密</button>'
+      +'<button class="btn-sm btn-del" onclick="openModal(\'modal-del\',\''+e.name+'\')">删除</button>'
+    +'</td></tr>'}).join('');
+  }).catch(function(){document.getElementById('ext-list').innerHTML='<tr><td colspan="4">加载失败</td></tr>'});
+}
+
+document.getElementById('addForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  var name=document.getElementById('ext_num').value.trim(), pass=document.getElementById('ext_pass').value.trim();
+  if(!name){toast('分机号不能为空','error');return}
+  if(!pass){toast('密码不能为空','error');return}
+  fetch('/api/extensions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,password:pass})})
+  .then(async r=>{var d=await r.json();apiToast(r,d);if(r.ok){document.getElementById('ext_num').value='';document.getElementById('ext_pass').value='';loadExt()}});
+});
+window.onload=loadExt;
+</script>
+<script src="/static/sidebar.js"></script>
+</body></html>

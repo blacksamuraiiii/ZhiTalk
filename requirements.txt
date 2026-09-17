@@ -1,0 +1,33 @@
+# Web 框架
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# LLM 客户端 (OpenAI 兼容)
+openai>=1.0.0
+
+# 音频处理 (8k→16k 重采样喂 X-ASR 16kHz 模型)
+numpy>=1.26.0
+soxr>=0.5.0
+
+# AMI 控制
+pyst2>=0.5.0
+
+# HTTP 客户端
+requests>=2.31.0
+
+# 定时任务调度
+apscheduler>=3.10.0
+
+# 配置
+pyyaml>=6.0
+
+# ASR + TTS 引擎（sherpa-onnx，自带 onnxruntime 无需额外安装）
+# ⚠ sherpa-onnx pip wheel 自带 onnxruntime，但部分 pip 版本可能不自动安装此传递依赖；
+#    显式声明防止被其他包（如 edge-tts）的依赖解析覆盖。
+sherpa-onnx>=1.12.0
+onnxruntime>=1.18.0
+
+# EdgeTTS（微软在线 TTS，可选）
+edge-tts>=6.1.0
+# 音频解码（EdgeTTS 输出 MP3 → float32）
+soundfile>=0.14.0
